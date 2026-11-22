@@ -10,27 +10,30 @@ import zipfile
 from playwright.async_api import async_playwright, expect
 
 ROOT=Path(__file__).resolve().parents[1]
-PS=str(Path(os.environ.get('WINDIR','C:/Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe')
+PS=os.environ.get('OCI_TEST_POWERSHELL') or str(Path(os.environ.get('WINDIR','C:/Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe')
+CHROMIUM=os.environ.get('OCI_TEST_CHROMIUM')
+def browser_options():return {'executable_path':CHROMIUM} if CHROMIUM else {'channel':'chromium'}
+def q(v):return "'"+str(v).replace("'","''")+"'"
 
 
 async def main():
     report={}
     with tempfile.TemporaryDirectory(prefix='oci-profile-check-') as temporary:
         base=Path(temporary);local=base/'local';target=local/'Cloudragon/OCICompanion';ext=target/'extension'
-        data=(ROOT/'tests/fixtures/managed-r7-payload.zip').read_bytes()
-        with zipfile.ZipFile(ROOT/'tests/fixtures/managed-r7-payload.zip') as z:
+        data=(ROOT/'tests/fixtures/visual-v1.3.0-r9-payload.zip').read_bytes()
+        with zipfile.ZipFile(ROOT/'tests/fixtures/visual-v1.3.0-r9-payload.zip') as z:
             baseline=json.loads(z.read('payload/baseline.json'))
             for name in z.namelist():
                 if name.startswith('payload/extension/'):
                     file=target/name[8:];file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(z.read(name))
-        (target/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':baseline['setupHash']}))
-        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.2.3','payloadSha256':hashlib.sha256(data).hexdigest()}))
+        (target/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':hashlib.sha256(data).hexdigest()}))
+        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.3.0','payloadSha256':hashlib.sha256(data).hexdigest()}))
         fixture={'profiles':[{'id':'demo-profile','tenancy':'example-tenant','name':'데모 계정','username':'demo@example.invalid','password':'synthetic-value','bypassCode':'000123'}],
                  'appearance':{'mode':'light','accent':'#176b61'},'settings':{'mode':'file','fileKind':'picker','nativePath':''}}
         async with async_playwright() as p:
             async def launch():
-                context=await p.chromium.launch_persistent_context(str(base/'browser-profile'),channel='chromium',headless=True,
-                    args=['--disable-extensions-except='+str(ext),'--load-extension='+str(ext)])
+                context=await p.chromium.launch_persistent_context(str(base/'browser-profile'),headless=True,**browser_options(),
+                    args=(['--no-sandbox'] if os.name!='nt' else [])+['--disable-extensions-except='+str(ext),'--load-extension='+str(ext)])
                 worker=context.service_workers[0] if context.service_workers else await context.wait_for_event('serviceworker')
                 return context,worker.url.split('/')[2]
             context,first=await launch();page=await context.new_page();await page.goto('chrome-extension://'+first+'/options.html')
@@ -38,9 +41,16 @@ async def main():
             await page.evaluate("""async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('demo-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:p}));await w.close();await(await import('./lib/db.js')).handleSet(h);} """,fixture['profiles'])
             await context.close()
             env={**os.environ,'CLOUDRAGON_SETUP_LOCAL_DATA':str(local),'CLOUDRAGON_SETUP_NO_LAUNCH':'1','CLOUDRAGON_SETUP_NO_PAUSE':'1'}
-            cmd=ROOT/'dist/windows-visual-r9/Install.cmd'
-            command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(cmd)+'""'
-            result=subprocess.run(command,env=env,capture_output=True,timeout=60)
+            cmd=ROOT/'dist/windows-visual-r10/Install.cmd'
+            if os.name=='nt':
+                command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(cmd)+'""'
+                result=subprocess.run(command,env=env,capture_output=True,timeout=60)
+                report['installer_execution']='Actual Windows CMD/PowerShell'
+            else:
+                payload=ROOT/'dist/windows-visual-r10/_support/payload.zip'
+                code='. '+q(ROOT/'windows/setup-visual/Update.Core.ps1')+';. '+q(ROOT/'windows/setup-visual/Install.Core.ps1')+';Install-OrUpdateOciCompanion -Payload ([IO.File]::ReadAllBytes('+q(payload)+')) -ExpectedHash '+q(hashlib.sha256(payload.read_bytes()).hexdigest())+' -LocalData '+q(local)+' -NoLaunch|Out-Null'
+                result=subprocess.run([PS,'-NoLogo','-NoProfile','-NonInteractive','-Command',code],env=env,capture_output=True,timeout=60)
+                report['installer_execution']='Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI'
             assert result.returncode==0,result.stdout.decode(errors='replace')
             context,second=await launch();assert first==second
             page=await context.new_page();await page.goto('chrome-extension://'+second+'/options.html')
@@ -48,9 +58,9 @@ async def main():
             assert await page.evaluate("async()=> (await (await import('./lib/sources.js')).readSource()).profiles[0].username")=='demo@example.invalid'
             await context.close()
             report['same_extension_id']=True;report['accounts_theme_source_and_opfs_handle_preserved']=True
-            browser=await p.chromium.launch();context=await browser.new_context(viewport={'width':1180,'height':900})
+            browser=await p.chromium.launch(**browser_options(),args=(['--no-sandbox'] if os.name!='nt' else []));context=await browser.new_context(viewport={'width':1180,'height':900})
             await context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{window.copiedText=t}}});")
-            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r9/_support/Guide-Preview.html').as_uri())
+            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r10/_support/Guide-Preview.html').as_uri())
             await expect(page.locator('h1')).to_have_text('빨간 박스를 따라 설정하세요.')
             await page.locator('#copy-path').click();assert await page.evaluate('window.copiedText')==r'%LOCALAPPDATA%\Cloudragon\OCICompanion\extension'
             await page.locator('[data-scheme=brave]').click();await page.locator('#copy-manager').click();assert await page.evaluate('window.copiedText')=='brave://extensions'

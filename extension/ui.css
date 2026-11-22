@@ -21,3 +21,5 @@ dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);bo
 
 #file-name,#source-result{overflow-wrap:anywhere}
 #file-settings label.checkbox{flex-direction:row;align-items:center;justify-content:flex-start}
+
+.file-access-help{padding:16px;background:var(--card-alt);border:1px solid var(--line);border-radius:12px;margin:16px 0}.file-access-help p,.file-access-help ol{color:var(--muted);font-size:13px;line-height:1.65}.file-access-help ol{padding-left:20px}.file-access-help strong{font-size:14px}.file-access-help .button-row{flex-wrap:wrap}

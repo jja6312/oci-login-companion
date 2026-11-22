@@ -3,3 +3,8 @@
 *.png binary
 *.ttf binary
 *.zip binary
+
+# Extension bytes must match the reviewed release on every checkout.
+extension/** -text
+# Bundled third-party license is retained verbatim, including CRLF.
+extension/fonts/OFL.txt binary

@@ -7,7 +7,7 @@ from pathlib import Path
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
-OUT=ROOT/'dist/windows-visual-r9'
+OUT=ROOT/'dist/windows-visual-r10'
 
 
 def main():
@@ -32,12 +32,12 @@ Install-OrUpdateOciCompanion @args | Format-List
 """
     script='param([byte[]]$Payload)\n'+entry
     boot="$ErrorActionPreference='Stop';try{$s=[IO.File]::ReadAllText($env:CLOUDRAGON_SETUP_SELF);$a='::CLOUDRAGON_SCRIPT';$b='::CLOUDRAGON_PAYLOAD';$i=$s.LastIndexOf($a,[StringComparison]::Ordinal);$j=$s.LastIndexOf($b,[StringComparison]::Ordinal);$code=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($s.Substring($i+$a.Length,$j-$i-$a.Length)));$bytes=[Convert]::FromBase64String($s.Substring($j+$b.Length));&([scriptblock]::Create($code)) -Payload $bytes}catch{Write-Host ('INSTALL FAILED: '+$_.Exception.Message);exit 1}"
-    lines=['@echo off','setlocal EnableExtensions DisableDelayedExpansion','set "CLOUDRAGON_SETUP_SELF=%~f0"','echo OCI Companion 1.3.0 - Install or Update r9',r'"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -Command "'+boot+'"','set "SETUP_RESULT=%ERRORLEVEL%"','if not defined CLOUDRAGON_SETUP_NO_PAUSE pause','exit /b %SETUP_RESULT%','::CLOUDRAGON_SCRIPT']
+    lines=['@echo off','setlocal EnableExtensions DisableDelayedExpansion','set "CLOUDRAGON_SETUP_SELF=%~f0"','echo OCI Companion 1.3.1 - Install or Update r10',r'"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -Command "'+boot+'"','set "SETUP_RESULT=%ERRORLEVEL%"','if not defined CLOUDRAGON_SETUP_NO_PAUSE pause','exit /b %SETUP_RESULT%','::CLOUDRAGON_SCRIPT']
     wrap=lambda b:'\r\n'.join(b[i:i+76] for i in range(0,len(b),76))
     cmd=('\r\n'.join(lines)+'\r\n'+wrap(base64.b64encode(script.encode()).decode())+'\r\n::CLOUDRAGON_PAYLOAD\r\n'+wrap(base64.b64encode(payload).decode())+'\r\n').encode('ascii')
     (OUT/'Install.cmd').write_bytes(cmd)
     (support/'Guide-Preview.html').write_text(entries['payload/Update-Guide.template.html'].decode().replace('{{EXTENSION_PATH}}',r'%LOCALAPPDATA%\Cloudragon\OCICompanion\extension').replace('{{INSTALL_MODE}}','new'),encoding='utf-8')
-    report={'version':'1.3.0','installerRevision':9,'cmdSha256':hashlib.sha256(cmd).hexdigest(),'payloadSha256':digest,'cmdBytes':len(cmd),'runtimeChanged':False,'explorerLaunchRequested':False,'screenshots':5,'appFiles':{n[8:]:hashlib.sha256(b).hexdigest() for n,b in entries.items() if n.startswith('payload/extension/')}}
+    report={'version':'1.3.1','installerRevision':10,'cmdSha256':hashlib.sha256(cmd).hexdigest(),'payloadSha256':digest,'cmdBytes':len(cmd),'runtimeChanged':True,'explorerLaunchRequested':False,'screenshots':5,'appFiles':{n[8:]:hashlib.sha256(b).hexdigest() for n,b in entries.items() if n.startswith('payload/extension/')}}
     (support/'manifest.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:report[k] for k in ['version','installerRevision','cmdBytes','cmdSha256','payloadSha256']}))
 

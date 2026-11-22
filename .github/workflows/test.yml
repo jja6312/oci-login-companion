@@ -1,5 +1,8 @@
 name: Extension and Windows installer checks
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 permissions:
   contents: read
 jobs:
@@ -17,3 +20,8 @@ jobs:
       - run: python scripts/build_visual_guide.py
       - run: python scripts/build_visual_installer.py
       - run: python -m unittest discover -s tests -p test_visual_installer.py -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oci-companion-windows-installer
+          path: dist/windows-visual-r10/
+          retention-days: 7
