@@ -2,7 +2,7 @@
 
 A Chrome/Brave Manifest V3 extension for OCI operators managing many tenancies. They search a tenancy or customer alias with Ctrl+Shift+Space, press Enter, and continue through the fixed OCI login flow using their saved username, password and administrator-issued Bypass Code.
 
-Profiles live in extension-local storage or a read-only team JSON file connected by file picker or the optional Windows native file reader. No own server, analytics or Chrome sync. Same-path offline updates preserve the extension ID and stored configuration. Store publishing was cancelled by the user.
+Profiles live in extension-local storage or a team JSON file connected by file picker or the optional Windows native helper, read-only unless its editing permission is enabled. No own server, analytics or Chrome sync. Same-path offline updates preserve the extension ID and stored configuration. Store publishing was cancelled by the user.
 
 The approved interface follows the user's Proton Pass screenshot: search above a tenancy list and credential detail, dark default, user-chosen accent. Preserve this interface while adding functions.
 
@@ -15,3 +15,5 @@ Success: pick the intended customer/account quickly, retain exact password/code 
 1.2.2: observed global→regional OAuth→IDCS redirect support, with routing-only intermediaries and no new regional host privileges. User-triggered diagnostics contain only safe categories/flags for support; never credentials/account/URL data. Version is visible in the existing footer. No new marketing copy.
 
 1.2.3 MFA completion: choose the explicit Oracle BYPASSCODE factor even when its icon button has no useful text; wait for its verified generic JET code view, fill/commit the code and verify once. Never classify an SMS/TOTP field from a nearby alternative-method heading.
+
+1.3: personal and team import/export targets are explicit. A team file can remain read-only or allow edits, bulk append and import directly into the selected file. New files start empty. Every UI open/focus/visible refresh and login start rereads the connected local file; OneDrive synchronizes that file between PCs independently. Shared-source records are not copied into personal storage. Revision checks preserve newer local file changes while edits/imports are staged; they are not a distributed lock or a OneDrive upload acknowledgment. Native helper writes require an explicit policy opt-in for the one configured path.

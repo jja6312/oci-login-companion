@@ -13,3 +13,5 @@ Verification: real extension in disposable Linux Chromium; review780x580 popup, 
 Empty personal state: remove the mark, heading, paragraph and left-side add/import instruction. Only the existing Add account action with Alt+N remains. Preserve the other controls and approved layout.
 
 1.2.2: keep the approved layout. Add one diagnostic-copy action in the existing account menu, and put the version beside the existing sidebar wordmark. Support-only details stay out of the normal login path.
+
+1.3: preserve the approved vault. Storage settings expose file selection/new file and explicit team editing permission. Data settings have separate personal/team selectors above import/export. Use existing controls, no new panels or dashboard chrome. Describe local file reads and writes accurately; never label a local save as completed cloud synchronization. Keep dialogs scrollable at780x580 and390px. Team deletion/save names the shared file scope; import conflicts retain the draft and offer latest-list review. A connected empty editable team file uses the existing Add account action without onboarding prose.
