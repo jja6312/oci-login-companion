@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "seoul-ops",
+      "name": "서울 운영 계정",
+      "tenancy": "replace-tenancy",
+      "identityDomain": "Default",
+      "username": "replace-username",
+      "password": "REPLACE_PASSWORD",
+      "bypassCode": "REPLACE_ADMIN_BYPASS_CODE"
+    }
+  ]
+}

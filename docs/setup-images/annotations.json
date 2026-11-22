@@ -1,0 +1,74 @@
+{
+  "01-developer-load": {
+    "width": 1180,
+    "height": 820,
+    "boxes": [
+      {
+        "x": 1142,
+        "y": 19.98,
+        "width": 26,
+        "height": 16
+      },
+      {
+        "x": 24,
+        "y": 65.08,
+        "width": 213.73,
+        "height": 36
+      }
+    ]
+  },
+  "02-existing-reload": {
+    "width": 1180,
+    "height": 820,
+    "boxes": [
+      {
+        "x": 828,
+        "y": 371.02,
+        "width": 32,
+        "height": 32
+      }
+    ]
+  },
+  "03-details": {
+    "width": 1180,
+    "height": 820,
+    "boxes": [
+      {
+        "x": 526,
+        "y": 369.02,
+        "width": 86,
+        "height": 36
+      }
+    ]
+  },
+  "04-allow-incognito": {
+    "width": 1180,
+    "height": 820,
+    "boxes": [
+      {
+        "x": 317,
+        "y": 424.25,
+        "width": 680,
+        "height": 85.05
+      }
+    ]
+  },
+  "05-folder-picker": {
+    "width": 946,
+    "height": 266,
+    "boxes": [
+      {
+        "x": 137,
+        "y": 38,
+        "width": 584,
+        "height": 39
+      },
+      {
+        "x": 733,
+        "y": 221,
+        "width": 98,
+        "height": 31
+      }
+    ]
+  }
+}

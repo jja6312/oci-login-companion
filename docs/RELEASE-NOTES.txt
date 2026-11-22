@@ -1,0 +1,69 @@
+1.2.3 — Oracle MFA bypass selection and input (2026-11-22)
+The legacy icon-only factor button has a separate sibling h5 and an unrelated aria-label. Use its explicit BYPASSCODE factor marker and normalize the JET variant to the native button. After selection, identify Oracle generic text-input only with the unique bypass-auth-text-input verification control, including its initially-disabled state. Do not infer a code field from alternative-method headings beside SMS/TOTP controls. Ambiguous, disabled or contradictory factor controls stay untouched.
+Actual public templates/JET were tested in dummy views in an isolated world, comparing1.2.2 with fictitious values and no real authentication or API submission. Full offline worker/content flows separately cover same-document MFA selection and guarded failures. Windows Update r7 also accepts managed1.2.2 at the original path; reload the existing card and verify1.2.3. Native Windows/Brave and actual user authentication remain unverified. Store publication stays cancelled.
+
+OCI Companion1.2.2 · 2026-11-22
+
+사용자가1.2.1임을 확인했고 팝업 메시지로 unsupported-origin 중지가 확인됐습니다. 실제 익명 브라우저에서 공개 테넌시 선택까지만 관찰해 공통 로그인 서버 → login.<region>.oraclecloud.com 지역 중계 → IDCS/OAuth → signin 이동을 확인했습니다. 기존1.2.1은 이 중계 호스트에서 중지하며, 새 작업은 해당 구간을 통과해 실제 credentials 단계에 도달합니다. 비교용 worker는 모든 아이디/비밀번호/우회코드 CLAIM을 강제로 거절해 실제 로그인 제출을 하지 않았습니다. 고객 host/목록/인증 정보는 기록·배포에서 제외했습니다.
+
+지역 login.<region>.oraclecloud.com 및 .oci 변형을 이동 전용으로 추적합니다. 새 지역 권한·코드 주입·CONTEXT·자격증명 제공은 없습니다. 테넌시 확인·검증된 최상위 이동·정확한 IDCS 문서 조건을 유지합니다. 기타 Oracle 서비스 호스트/주소창 직접 이동/다른 프레임/확인되지 않은 테넌시는 차단합니다.
+
+OAuth 프로토콜 문서에서는 입력하지 않습니다. 이동 중 사라진 문서의 주입 실패는 다음 문서로 이어가며, 실제 접근 권한 상실은 중지하고 같은 문서의 일시 오류는 최대3회 후 중지합니다. 계정 메뉴의 진단 정보 복사와 팝업 버전을 추가했습니다. 복사에는 계정·비밀번호·코드·실제호스트·URL·파일경로가 없습니다.
+
+Windows Update r6: 관리된1.1.0/1.1.1/1.2.0/1.2.1을 동일경로1.2.2로 갱신하며 이전 폴더/영수증 백업·실패시되돌리기를 유지합니다. 스토어 게시·브라우저 정책·레지스트리·실행정책·서버 서비스 변경은 없습니다.
+
+검사 수와 공개 경로/모의 인증/실제Windows 미확인 범위는 validation-report.json을 따릅니다. 실제 사용자 OCI 인증 완료와 Windows CMD/PS5.1 실행은 아직 미검증입니다.
+
+---
+OCI Companion1.2.1 · 2026-11-22
+
+Oracle IDCS 화면에서 바깥 oj-input-text/oj-input-password ID와 내부 네이티브 input을 서로 다른 입력란으로 인식해 ambiguous field로 멈추던 문제를 수정했습니다. 공개 Oracle JET 컴포넌트로 기존 오류를 재현했고, 새 엔진을 격리된 world에서 실행해 실제 내부 input으로 정규화하고 blur로 검증값을 확정한 뒤 disabled→enabled 사인인 버튼을 한 번만 누르는 것을 확인했습니다. 가상 값과 새 dummy form만 사용했고 부팅 후 네트워크는 차단했습니다. 실제 고객 로그인 제출은 하지 않았습니다.
+
+한국어 ‘사인인’ 인식, 값 입력 후 활성화되는 제출 버튼 대기(최대5초), 첫 cloud.oracle.com HTTP302의 중간 commit 부재, DOMContentLoaded 시점의 정확 documentId 주입을 처리합니다. 자격증명 origin/tab/frame/document/TTL 검증을 완화하지 않았습니다. 잘못된 중복 입력과 계속 비활성인 버튼에서는 중지하며 반복 제출하지 않습니다.
+
+빈 개인 저장소는 계정 추가 버튼과 Alt+N만 표시합니다. 로컬 단축키는 확장 팝업/페이지에 포커스가 있을 때 동작합니다. 기존 별칭·일괄 등록·빠른 원형 팔레트·시크릿 분리는 유지합니다. Windows Update r5는 관리된1.1.0/1.1.1/1.2.0을 같은 경로에서1.2.1로 업데이트하며 이전 파일과 영수증을 백업합니다.
+
+검사 수와 범위는 validation-report.json을 따릅니다. 실제 Windows CMD/PS5.1/브라우저 카드Reload, 실제 고객 OCI 인증 완료는 아직 미검증입니다. 공개 컴포넌트 확인에 사용한 고객 host/브랜딩/목록은 배포본과 중앙 기록에서 제외했습니다.
+
+---
+OCI Companion1.2.0 · 2026-11-22
+
+시크릿 창에서 시작한 로그인은 그 창의ID와 privacy context를 명시해 엽니다. spanning 확장의 자체 launch 페이지 대신 시크릿에서는 빈 탭을 준비하고 확인 후 OCI로 이동합니다. 창이 닫혔거나 모드가 다르면 중지합니다. 시크릿 쿠키/작업 상태를 일반 창과 분리하고 최근 사용/학습 메타데이터를 영구 저장하지 않습니다. 브라우저의 시크릿 허용 설정은 사용자 최초1회가 필요합니다.
+
+고객사명·별칭을 기본 계정 필드로 옮겨 검색/목록/상세에 표시합니다. 기존 name 스키마/JSON을 사용해 예전 계정을 유지합니다. 검색창 아래6개 원형 팔레트로 테마를 즉시 변경합니다. 기존 직접 색/밝기 설정도 유지합니다.
+
+엑셀 각 열 붙여넣기 일괄 등록: 필수4열+선택 고객사명/도메인. 행 수·빈 셀·중복·최종 저장 한도 검증, 비밀값 없는 전체 미리보기, worker에서 전체 추가1회 저장. 비밀번호 공백/코드 앞0 유지, 기존 계정 덮어쓰기/팀 파일 직접 쓰기 없음.
+
+Windows Update r4는 관리된1.1.0/r1/r2 및1.1.1/r3에서 원본 파일/표식/영수증을 확인하고 같은 경로로 갱신합니다. 이전 폴더와 기존 업데이트 영수증을 로컬 백업하며 실패 시 되돌립니다. 실제 Chrome/Brave 기존 확장 카드 Reload는 사용자가 합니다.
+
+검증 수/환경/한계는 validation-report.json을 따릅니다. 실제 Linux Chromium의 일반/시크릿 창·쿠키 저장소와 loopback TLS OCI fixture, PS7/Linux 실제 파일 트랜잭션으로 검사했습니다. 고객 실OCI 인증, 실제 Windows CMD/PS5.1/Brave 단축키/권한 팝업은 미검증입니다. Chromium 테스트의 COMMAND_LINE 확장은 시크릿 허용 설정을 바꾸면 언로드되어 같은 임시 프로필을 재시작해 검증했습니다.
+
+스토어 게시 취소 상태를 유지합니다. 운영 서비스/브라우저 정책/레지스트리/실행정책 변경 없음. 이하 기존1.1.1 변경 기록은 당시 범위를 설명하며1.2 릴리스 파일 해시와는 다릅니다.
+
+
+---
+OCI Companion 1.1.1 · 2026-11-22
+
+수정
+비로그인 상태에서 www.oracle.com/cloud/sign-in.html 계정명 입력으로 이어지는 공식 경로도 처리합니다. 이 경로에서는 테넌시 이름만 입력하며 다른 Oracle 웹페이지에는 실행하지 않습니다.
+
+기존 OCI 세션이 있을 때 login.oci.oraclecloud.com의 Session Picker에서 멈추던 경로를 처리합니다. 이 호스트의 정확한 선택적 권한을 요청하고, OCI 콘솔/확인된 인증 이동에서 이어진 작업 탭의 최상위 문서만 처리합니다.
+
+Oracle 공개 로그인 자바스크립트에서 session-picker-dialog, btn-session-* 카드와 user-name/domain-name/tenant-name 구조, session-change 버튼을 확인했습니다. 고객의 실제 목록은 테스트/배포 파일에 복사하지 않았습니다. 테스트는 example.invalid 가상 계정을 사용합니다.
+
+세션 카드는 테넌시(대소문자 무시), 아이디와 도메인(앞뒤 공백 외 정확히 일치)이 모두 맞고 하나일 때만 선택합니다. 선택 직전 다시 읽어 변경된 카드이면 중지합니다. 같은 테넌시의 다른 사용자/다른 도메인, 중복 세션은 임의로 선택하지 않습니다. 일치 세션이 없으면 Oracle의 다른 사용자 계정 로그인 버튼을 눌러 테넌시·도메인·계정·Bypass Code 순서로 이어집니다. 이미 유효한 일치 세션이면 비밀번호와 코드를 다시 입력하지 않고 그 세션으로 콘솔 이동합니다.
+
+로그인 게이트웨이에 도착한 것만으로 비밀번호를 제공하지 않습니다. 이 작업에서 테넌시 입력 또는 정확한 세션 선택을 확인한 뒤에만 해당 인증 단계에 값을 제공합니다. 다른 사이트, 다른 탭/문서와 하위 프레임에는 제공하지 않습니다. 기존 Oracle 세션을 로그아웃하거나 관리자 세션 설정을 바꾸지 않습니다.
+
+업데이트
+Windows Update r3는 이전 r1/r2 도우미가 설치한 1.1.0의 원본 파일을 확인한 뒤 같은 extension 경로에서 1.1.1로 교체합니다. 이전 확장은 로컬 AppData 백업 폴더에 보관합니다. Chrome/Brave의 저장소·프로필 파일과 계정을 직접 읽거나 삭제하지 않습니다. 기존 확장 카드 새로고침이 필요합니다. 임의 경로에 직접 설치했거나 원본 표준 파일을 수정한 경우에는 자동 덮어쓰지 않습니다.
+
+검증 범위
+모델·브라우저·업데이트 검사 결과는 함께 제공한 validation-report.json을 확인하세요. Session Picker 검사는 공개 Oracle DOM 구조를 사용한 loopback TLS fixture이며 실제 고객 세션을 자동 조작한 검사가 아닙니다. 비밀번호/Bypass Code 입력 흐름은 가상 계정으로 검증합니다. 실제 OCI 인증 완료, Windows CMD/PowerShell5.1 실행과 실제 Chrome/Brave 카드 새로고침은 아직 미검증입니다.
+
+배포
+스토어 배포는 사용자 취소 상태이며 등록·결제·업로드·심사·게시를 하지 않았습니다. 스토어 ZIP은 파일 구성용 산출물일 뿐 게시 완료가 아닙니다.
+
+공식 참고
+https://docs.oracle.com/en-us/iaas/Content/Identity/sessionsettings/customer-endpoint-settings.htm
+https://login.oci.oraclecloud.com/assets/soup-ux/js/main.js

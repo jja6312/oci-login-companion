@@ -1,0 +1,29 @@
+OCI Companion 1.2.2 데이터 처리 안내
+
+개발자의 서버, 분석 수집, 광고, 자체 원격 동기화 기능이 없습니다. 계정 정보와 비밀번호·Bypass Code는 확장 전용 chrome.storage.local 또는 사용자가 연결한 JSON 파일에 보관합니다. Chrome 계정 동기화 저장소는 쓰지 않습니다. 테마색·밝기와 검증된 인증 주소 연결 정보·최근 사용 시각도 현재 브라우저에 저장됩니다.
+
+사용자가 실행한 OCI 탭에서 단계별로 필요한 값만 입력합니다. Oracle 세션 선택 화면에서는 선택한 테넌시·아이디·도메인과 일치하는 카드만 선택합니다. 새 로그인에서는 테넌시 입력 후 콘솔/로그인 게이트웨이에서 이어진 인증 주소를 확인합니다. 별도 사이트나 관련 없는 탭에는 값을 제공하지 않습니다. 제출된 정보의 Oracle 측 처리에는 Oracle 정책이 적용됩니다. 자체 서버에 비밀값을 보내지 않습니다.
+
+팀 파일의 기존 공유·동기화는 해당 서비스가 처리합니다. Windows 보조 프로그램은 설치 시 허용한 확장 ID와 JSON 한 파일만 읽어 반환합니다. 파일 쓰기, 폴더 탐색, HTTP 리스너와 서비스 등록은 없습니다.
+
+별도 금고 암호화·잠금 기능은 없습니다. PC/Chrome 프로필 및 팀 파일 접근 권한으로 보호합니다. 내보내기 JSON에는 모든 비밀값이 포함됩니다. 복사를 누르면 해당 값이 OS 클립보드에 남을 수 있습니다. 개인 계정을 삭제해도 Oracle 계정/코드 자체나 팀 원본은 바뀌지 않습니다. 확장 제거 시 확장 저장소는 제거됩니다.
+
+권한
+storage: 개인 데이터·화면 설정·인증 연결 및 단기 작업 저장.
+scripting: 사용자가 허용한 OCI 화면에 자동입력 코드 실행.
+activeTab: 현재 탭에 입력만 기능.
+alarms: 3분 작업 만료 제거.
+webNavigation: 실행 중인 탭의 최상위 문서와 OCI 인증 이동 확인. 전체 방문 기록 저장·전송은 하지 않음.
+선택적 OCI host 권한: cloud.oracle.com, login.oci.oraclecloud.com, www.oracle.com(실제 실행은 /cloud/sign-in.html 경로만), *.identity.oraclecloud.com, login.oraclecloud.com, signin.oraclecloud.com. 자동 발견을 위해 요청하되 작업 탭의 정확한 문서/인증 주소를 추가 확인한 후 값을 제공함. 기존 JSON에 사용자가 등록한 추가 Oracle 인증 origin은 필요할 때 함께 요청.
+선택적 nativeMessaging: Windows 전체 경로 파일 연결을 선택한 경우만 요청.
+
+실행 코드는 모두 패키지에 포함되며 원격 실행 코드와 추적 서비스는 없습니다.
+
+시크릿 모드
+브라우저의 시크릿 모드 허용은 사용자가 직접 켭니다. spanning 모드로 개인 계정·테마 및 읽기 전용 팀 연결을 공유하되, 실행 탭의 privacy context와 같은 창 ID를 명시합니다. OCI 쿠키 저장소는 브라우저의 일반/시크릿 구분을 따릅니다. 시크릿 실행에서는 최근 사용 시각/새 인증 연결을 영구 저장하지 않고 단기 작업은 탭 종료/완료/만료에 제거합니다. 일괄 등록이나 테마 변경처럼 사용자가 명시적으로 저장하는 작업은 일반 창과 공유됩니다.
+
+일괄 등록은 별도 서버/업로드/클립보드 자동 읽기 없이 사용자가 붙여넣은 텍스트만 처리합니다. 비밀값은 미리보기에 표시하지 않으며 취소/완료 시 입력 버퍼를 비웁니다.
+
+지역 OAuth 중계 호스트는 이동만 확인합니다. 해당 페이지에는 새 권한 요청·자동입력 코드 주입·계정 정보 제공을 하지 않습니다. 진단 이벤트는 진행 중/최근 작업의 확장 전용 메모리 저장소에 최대24개, 주소 분류 경로는12개까지만 보관하며 실제 호스트/URL/계정/비밀값을 넣지 않습니다. 사용자 클릭으로 복사할 때도 고정 허용 항목만 다시 선택합니다. 시크릿 작업 진단은 일반 창에서 조회하지 못하고 해당 탭을 닫으면 단기 상태를 제거합니다.
+
+1.2.3 changes only MFA control recognition and the displayed version. No new permissions, network destinations, telemetry, clipboard reads or vault schema changes. Public Oracle templates used for component verification are loaded at runtime in dummy views; vendor bundles, real hostnames and customer originals are excluded from deliverables.
