@@ -40,15 +40,15 @@ function Update-OciCompanion {
         $archive = Join-Path $stage 'payload.zip'; [IO.File]::WriteAllBytes($archive,$Payload); $unpack = Join-Path $stage 'unpack'; [IO.Compression.ZipFile]::ExtractToDirectory($archive,$unpack); $source = Join-Path $unpack 'payload';
         $baseline = [IO.File]::ReadAllText((Join-Path $source 'baseline.json')) | ConvertFrom-Json; $state = [IO.File]::ReadAllText($marker) | ConvertFrom-Json;
         $cur = [IO.File]::ReadAllText((Join-Path $ext 'manifest.json')) | ConvertFrom-Json; $next = [IO.File]::ReadAllText((Join-Path $source 'extension/manifest.json')) | ConvertFrom-Json;
-        if ($cur.name -cne 'OCI Login Companion' -or $next.name -cne $cur.name -or $next.version -cne '1.2.3') { throw 'Unexpected extension manifest.'; };
-        $expected = @{}; $reuse = ($cur.version -ceq '1.2.3' -and [IO.File]::Exists($rp) -and (([IO.File]::ReadAllText($rp)|ConvertFrom-Json).payloadSha256) -ceq $ExpectedHash);
+        if ($cur.name -cne 'OCI Login Companion' -or $next.name -cne $cur.name -or $next.version -cne '1.3.0') { throw 'Unexpected extension manifest.'; };
+        $expected = @{}; $reuse = ($cur.version -ceq '1.3.0' -and [IO.File]::Exists($rp) -and (([IO.File]::ReadAllText($rp)|ConvertFrom-Json).payloadSha256) -ceq $ExpectedHash);
         if ($reuse) {
             if (-not [IO.File]::Exists($rp) -or (([IO.File]::ReadAllText($rp) | ConvertFrom-Json).payloadSha256) -cne $ExpectedHash) { throw 'Unknown current update preserved.'; };
             foreach ($key in $hashes.Keys) { if ($key.StartsWith('extension/')) { $expected[$key] = $hashes[$key]; }; };
         } else {
             $old = $baseline.versions.PSObject.Properties[$cur.version].Value;
-            if (-not $old -or $state.payloadSha256 -cne $baseline.setupHash) { throw 'Unsupported version preserved.'; };
-            if ($old.receiptHash) { if (-not [IO.File]::Exists($rp) -or (([IO.File]::ReadAllText($rp)|ConvertFrom-Json).payloadSha256) -cne $old.receiptHash) { throw 'Unknown update preserved.'; }; } elseif ([IO.File]::Exists($rp)) { throw 'Unknown receipt preserved.'; };
+            if (-not $old -or -not ((@($baseline.setupHash)+@($baseline.setupHashes)) -ccontains $state.payloadSha256)) { throw 'Unsupported version preserved.'; };
+            if ($old.receiptHash) { if (-not [IO.File]::Exists($rp) -or -not ((@($old.receiptHash)+@($old.receiptHashes)) -ccontains (([IO.File]::ReadAllText($rp)|ConvertFrom-Json).payloadSha256))) { throw 'Unknown update preserved.'; }; } elseif ([IO.File]::Exists($rp)) { throw 'Unknown receipt preserved.'; };
             foreach ($p in $old.files.PSObject.Properties) { $expected[$p.Name] = $p.Value; };
         };
         foreach ($key in $expected.Keys) { $file = Join-Path $target $key; if (-not [IO.File]::Exists($file) -or (Get-OciSetupHash ([IO.File]::ReadAllBytes($file))) -cne $expected[$key]) { throw 'Modified files preserved.'; }; };
@@ -57,7 +57,7 @@ function Update-OciCompanion {
         if (-not $reuse) {
             foreach ($file in $files) { $relative = $file.FullName.Substring($ext.Length+1).Replace([IO.Path]::DirectorySeparatorChar,'/'); $key = 'extension/' + $relative; if (-not $expected.ContainsKey($key)) { $extra = Join-Path $source $key; if ([IO.File]::Exists($extra)) { throw 'Conflicting extra file preserved.'; }; [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($extra)) | Out-Null; [IO.File]::Copy($file.FullName,$extra,$false); }; };
             $backup = Join-Path $target ('extension-backup-previous-' + [Guid]::NewGuid().ToString('N')); $receipt = Join-Path $stage 'receipt.json';
-            [IO.File]::WriteAllText($receipt,(@{version='1.2.3';payloadSha256=$ExpectedHash;backupPath=$backup} | ConvertTo-Json),[Text.UTF8Encoding]::new($false));
+            [IO.File]::WriteAllText($receipt,(@{version='1.3.0';payloadSha256=$ExpectedHash;backupPath=$backup} | ConvertTo-Json),[Text.UTF8Encoding]::new($false));
             $oldMoved=$false; $newMoved=$false;
             try { [IO.Directory]::Move($ext,$backup); $oldMoved=$true; [IO.Directory]::Move((Join-Path $source 'extension'),$ext); $newMoved=$true; if([IO.File]::Exists($rp)){[IO.File]::Move($rp,($backup+'.json'));}; [IO.File]::Move($receipt,$rp); } catch { try { if($newMoved){[IO.Directory]::Move($ext,(Join-Path $stage 'failed-new'));}; if($oldMoved){[IO.Directory]::Move($backup,$ext);}; if([IO.File]::Exists(($backup+'.json'))){[IO.File]::Move(($backup+'.json'),$rp);}; } catch { $cleanup=$false; throw 'Rollback incomplete; keep backup and staging.'; }; throw; };
             Write-Host '[2/4] Same folder updated. Backup kept.';

@@ -1,5 +1,5 @@
 import {normalizeProfile,patternsFor,CONSOLE_ORIGIN,bindingKey,canLearnIdentity,isAutoIdentityOrigin,isBrokerOrigin,routingKind,isOAuthBridge,BROKER_ORIGIN,canEnterBroker,ENTRY_ORIGIN,ENTRY_PATH,ENTRY_PATTERN,canEnterEntry} from './lib/model.js';
-import {readSource,settingsGet,personalGet,personalSet} from './lib/sources.js';
+import {readSource,writeList,sourceRef} from './lib/sources.js';
 import {appendBulkProfiles} from './lib/bulk.js';
 import {validateLaunchWindow} from './lib/windows.js';
 import {trace,snapshot,diagnosticReport} from './lib/diagnostics.js';
@@ -113,9 +113,7 @@ async function handle(m,s){
       const job=st&&all[`job:${st.tabId}`];return {ok:true,report:diagnosticReport(job?{...st,debug:snapshot(job)}:st,chrome.runtime.getManifest().version,scope.incognito)};
     }
     if(m.type==='BULK_ADD'){
-      if((await settingsGet()).mode!=='local')throw new UserError('일괄 등록은 개인 저장소에서 할 수 있습니다. 팀 파일은 읽기 전용입니다.');
-      let next;try{next=appendBulkProfiles(await personalGet(),m.profiles);}catch(e){throw new UserError(e.message);}
-      await personalSet(next);return {ok:true,count:m.profiles.length};
+      try{const base=await readSource();if(!base.writable)throw new Error('설정에서 팀 파일 편집을 허용해 주세요.');const ref=sourceRef(base);if(!m.source||m.source.target!==ref.target||(m.source.connection??null)!==ref.connection)throw new Error('저장 위치가 변경되었습니다. 일괄 등록을 다시 열어 주세요.');const next=appendBulkProfiles(base.profiles,m.profiles);await writeList(base,next);return {ok:true,count:m.profiles.length};}catch(e){throw new UserError(e.message);}
     }
     if(m.type==='CANCEL'){await finish(m.tabId,'자동 로그인을 중지했습니다.','stopped','cancelled');return {ok:true};}
     if(m.type==='REGISTER'){await register();return {ok:true};}

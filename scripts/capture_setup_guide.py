@@ -16,7 +16,7 @@ OUT = ROOT / "docs" / "setup-images"
 
 async def run():
     OUT.mkdir(parents=True, exist_ok=True)
-    annotations = {}
+    annotations = json.loads((OUT/'annotations.json').read_text()) if (OUT/'annotations.json').exists() else {}
     with tempfile.TemporaryDirectory(prefix="oci-guide-") as profile:
         async with async_playwright() as p:
             context = await p.chromium.launch_persistent_context(profile, channel="chromium", headless=True,

@@ -4,7 +4,7 @@ Fixture copy pregrants OCI permissions; native Chrome approval UI is not automat
 import asyncio,json,pathlib,shutil,re,ssl,socket,subprocess,sys,time
 from types import SimpleNamespace
 from playwright.async_api import async_playwright,expect
-ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work/v1.2.3';WORK.mkdir(exist_ok=True)
+ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work/v1.3.0';WORK.mkdir(exist_ok=True)
 CHROME='/home/codex/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome'
 IDENTITY='https://idcs-fixture.identity.oraclecloud.com';CONSOLE='https://cloud.oracle.com';BROKER='https://login.oci.oraclecloud.com';ENTRY='https://www.oracle.com';REGIONAL='https://login.us-ashburn-1.oraclecloud.com';REGIONAL_OCI='https://login.us-ashburn-1.oci.oraclecloud.com';OTHER_ROUTE='https://api.us-ashburn-1.oraclecloud.com'
 PROFILE={'id':'fixture-seoul','name':'서울 운영 계정','tenancy':'cloudragon-prod','identityDomain':'Default','username':'operator@example.invalid','password':'fixture-password','bypassCode':'000123','identityOrigins':[],'selectors':{}}
@@ -205,7 +205,7 @@ async def main():
    for k in ['tenancy','username','password','bypassCode']:await page.locator('#bulk-'+k).fill(vals[k].split('\n')[0])
    await page.locator('#bulk-preview').click();assert '중복' in await page.locator('#bulk-error').inner_text();assert await page.locator('#bulk-save').is_disabled();await page.keyboard.press('Escape');assert not await page.locator('#bulk-dialog').is_visible();assert await page.locator('#bulk-bypassCode').input_value()=='';ok('duplicate target is rejected and Escape clears the whole unsaved batch')
    await page.evaluate("chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}})")
-   denied=await page.evaluate('(p)=>chrome.runtime.sendMessage({type:"BULK_ADD",profiles:[p]})',PROFILE);assert not denied['ok'] and '개인' in denied['error'];assert len(await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
+   denied=await page.evaluate('(p)=>chrome.runtime.sendMessage({type:"BULK_ADD",profiles:[p]})',PROFILE);assert not denied['ok'] and '팀' in denied['error'];assert len(await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
    await page.evaluate("chrome.storage.local.set({settings:{mode:'local',fileKind:'picker',nativePath:''}})")
    # Enable private access through the real extension settings in this disposable browser.
    settings=await ctx.new_page();await settings.goto('chrome://extensions/?id='+eid);await settings.locator('#allow-incognito').click()
@@ -328,7 +328,7 @@ async def main():
     await page.wait_for_timeout(100)
    target=next(x for x in ctx.pages if x.url==tab['url']);await target.goto('https://idcs-untrusted.identity.oraclecloud.com/credentials');st=await wait_regional(tid);assert st['step']=='stopped';assert await target.locator('#password').input_value()=='';ok('typed identity navigation from a regional broker cannot become a trusted identity')
    report=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"DIAGNOSTICS",windowId:w.id,incognito:w.incognito,profileId:p.id});}',PROFILE)
-   encoded=json.dumps(report);assert report['ok'] and report['report']['version']=='1.2.3' and report['report']['reason']=='unsupported-origin';assert all(v not in encoded for v in [PROFILE['tenancy'],PROFILE['username'],PROFILE['password'],PROFILE['bypassCode'],IDENTITY,REGIONAL]);ok('diagnostics export contains routing categories and reason but no account, hostname or secret')
+   encoded=json.dumps(report);assert report['ok'] and report['report']['version']=='1.3.0' and report['report']['reason']=='unsupported-origin';assert all(v not in encoded for v in [PROFILE['tenancy'],PROFILE['username'],PROFILE['password'],PROFILE['bypassCode'],IDENTITY,REGIONAL]);ok('diagnostics export contains routing categories and reason but no account, hostname or secret')
    await page.locator('#more').click();await page.locator('#diagnostics').click();await expect(page.locator('#toast')).to_have_text('진단 정보를 복사했습니다');ok('user-triggered diagnostic copy works from existing account menu')
    assert not errors,errors
    (WORK/'regional-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only regional grants used to verify explicit deny and no registration'},ensure_ascii=False,indent=2)+'\n')

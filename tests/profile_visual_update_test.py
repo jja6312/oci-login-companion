@@ -38,7 +38,7 @@ async def main():
             await page.evaluate("""async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('demo-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:p}));await w.close();await(await import('./lib/db.js')).handleSet(h);} """,fixture['profiles'])
             await context.close()
             env={**os.environ,'CLOUDRAGON_SETUP_LOCAL_DATA':str(local),'CLOUDRAGON_SETUP_NO_LAUNCH':'1','CLOUDRAGON_SETUP_NO_PAUSE':'1'}
-            cmd=ROOT/'dist/windows-visual-r8/Install.cmd'
+            cmd=ROOT/'dist/windows-visual-r9/Install.cmd'
             command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(cmd)+'""'
             result=subprocess.run(command,env=env,capture_output=True,timeout=60)
             assert result.returncode==0,result.stdout.decode(errors='replace')
@@ -50,7 +50,7 @@ async def main():
             report['same_extension_id']=True;report['accounts_theme_source_and_opfs_handle_preserved']=True
             browser=await p.chromium.launch();context=await browser.new_context(viewport={'width':1180,'height':900})
             await context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{window.copiedText=t}}});")
-            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r8/_support/Guide-Preview.html').as_uri())
+            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r9/_support/Guide-Preview.html').as_uri())
             await expect(page.locator('h1')).to_have_text('빨간 박스를 따라 설정하세요.')
             await page.locator('#copy-path').click();assert await page.evaluate('window.copiedText')==r'%LOCALAPPDATA%\Cloudragon\OCICompanion\extension'
             await page.locator('[data-scheme=brave]').click();await page.locator('#copy-manager').click();assert await page.evaluate('window.copiedText')=='brave://extensions'

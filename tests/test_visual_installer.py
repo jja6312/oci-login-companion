@@ -11,7 +11,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 PS=str(Path(os.environ.get('WINDIR','C:/Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe')
-BUILD=ROOT/'dist/windows-visual-r8'
+BUILD=ROOT/'dist/windows-visual-r9'
 
 
 def q(p):return "'"+str(p).replace("'","''")+"'"
@@ -37,15 +37,26 @@ class VisualSetupTests(unittest.TestCase):
         out=result.stdout.decode('utf-8',errors='replace');self.assertEqual(result.returncode,0,out+result.stderr.decode(errors='replace'))
         return json.loads(next(line[7:] for line in out.splitlines() if line.startswith('RESULT:')))
 
-    def previous_r7(self):
-        data=(ROOT/'tests/fixtures/managed-r7-payload.zip').read_bytes()
+    def previous_r7(self, fixture='managed-r7-payload.zip', version='1.2.3', fresh_visual=False):
+        data=(ROOT/'tests/fixtures'/fixture).read_bytes()
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             baseline=json.loads(z.read('payload/baseline.json'))
             for entry in z.namelist():
                 if entry.startswith('payload/extension/'):
                     file=self.root/entry[8:];file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(z.read(entry))
-        (self.root/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':baseline['setupHash']}))
-        (self.root/'.oci-companion-update.json').write_text(json.dumps({'version':'1.2.3','payloadSha256':hashlib.sha256(data).hexdigest()}))
+        (self.root/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':hashlib.sha256(data).hexdigest() if fresh_visual else baseline['setupHash']}))
+        (self.root/'.oci-companion-update.json').write_text(json.dumps({'version':version,'payloadSha256':hashlib.sha256(data).hexdigest()}))
+
+    def test_current_130_managed_r8_is_accepted_without_changing_app_files(self):
+        self.previous_r7('managed-v1.3.0-r8-payload.zip','1.3.0')
+        before=(self.root/'extension/worker.js').read_bytes()
+        result=self.call();self.assertTrue(result['ok'],result)
+        self.assertEqual((self.root/'extension/worker.js').read_bytes(),before)
+
+    def test_previous_visual_fresh_install_can_upgrade_without_reset(self):
+        self.previous_r7('visual-v1.2.3-r8-payload.zip',fresh_visual=True)
+        result=self.call();self.assertTrue(result['ok'],result)
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.0')
 
     def test_fresh_then_repeat_keeps_same_extension_path_and_extra_files(self):
         first=self.call();self.assertTrue(first['ok'],first)
@@ -59,7 +70,7 @@ class VisualSetupTests(unittest.TestCase):
         self.previous_r7();before=(self.root/'extension/worker.js').read_bytes()
         old=(self.root/'.oci-companion-update.json').read_bytes()
         result=self.call();self.assertTrue(result['ok'],result)
-        self.assertEqual((self.root/'extension/worker.js').read_bytes(),before)
+        self.assertEqual((self.root/'extension/worker.js').read_bytes(),(ROOT/'extension/worker.js').read_bytes())
         backup=Path(result['result']['backupPath'])
         self.assertEqual((backup/'worker.js').read_bytes(),before)
         self.assertEqual(Path(str(backup)+'.json').read_bytes(),old)
@@ -87,7 +98,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.2.3')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.0')
 
 
 if __name__=='__main__':unittest.main()

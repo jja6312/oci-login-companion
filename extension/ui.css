@@ -18,3 +18,6 @@ dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);bo
 .sidebar{min-height:0}
 
 #empty-add{gap:18px}#empty-add kbd{color:inherit;opacity:.75}
+
+#file-name,#source-result{overflow-wrap:anywhere}
+#file-settings label.checkbox{flex-direction:row;align-items:center;justify-content:flex-start}
