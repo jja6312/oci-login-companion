@@ -1,10 +1,10 @@
 """Offline integration of shipped extension. Oracle hostnames use a loopback TLS fixture.
 Fixture copy pregrants OCI permissions; native Chrome approval UI is not automated.
 """
-import asyncio,json,pathlib,shutil,re,ssl,socket,subprocess,sys,time
+import asyncio,json,pathlib,shutil,re,ssl,socket,subprocess,sys,time,os
 from types import SimpleNamespace
 from playwright.async_api import async_playwright,expect
-ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work/v1.3.0';WORK.mkdir(exist_ok=True)
+ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work'/os.environ.get('OCI_TEST_RELEASE','v1.3.0');WORK.mkdir(exist_ok=True)
 CHROME='/home/codex/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome'
 IDENTITY='https://idcs-fixture.identity.oraclecloud.com';CONSOLE='https://cloud.oracle.com';BROKER='https://login.oci.oraclecloud.com';ENTRY='https://www.oracle.com';REGIONAL='https://login.us-ashburn-1.oraclecloud.com';REGIONAL_OCI='https://login.us-ashburn-1.oci.oraclecloud.com';OTHER_ROUTE='https://api.us-ashburn-1.oraclecloud.com'
 PROFILE={'id':'fixture-seoul','name':'서울 운영 계정','tenancy':'cloudragon-prod','identityDomain':'Default','username':'operator@example.invalid','password':'fixture-password','bypassCode':'000123','identityOrigins':[],'selectors':{}}
@@ -328,7 +328,7 @@ async def main():
     await page.wait_for_timeout(100)
    target=next(x for x in ctx.pages if x.url==tab['url']);await target.goto('https://idcs-untrusted.identity.oraclecloud.com/credentials');st=await wait_regional(tid);assert st['step']=='stopped';assert await target.locator('#password').input_value()=='';ok('typed identity navigation from a regional broker cannot become a trusted identity')
    report=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"DIAGNOSTICS",windowId:w.id,incognito:w.incognito,profileId:p.id});}',PROFILE)
-   encoded=json.dumps(report);assert report['ok'] and report['report']['version']=='1.3.0' and report['report']['reason']=='unsupported-origin';assert all(v not in encoded for v in [PROFILE['tenancy'],PROFILE['username'],PROFILE['password'],PROFILE['bypassCode'],IDENTITY,REGIONAL]);ok('diagnostics export contains routing categories and reason but no account, hostname or secret')
+   encoded=json.dumps(report);assert report['ok'] and report['report']['version']==json.loads((ROOT/'extension/manifest.json').read_text())['version'] and report['report']['reason']=='unsupported-origin';assert all(v not in encoded for v in [PROFILE['tenancy'],PROFILE['username'],PROFILE['password'],PROFILE['bypassCode'],IDENTITY,REGIONAL]);ok('diagnostics export contains routing categories and reason but no account, hostname or secret')
    await page.locator('#more').click();await page.locator('#diagnostics').click();await expect(page.locator('#toast')).to_have_text('진단 정보를 복사했습니다');ok('user-triggered diagnostic copy works from existing account menu')
    assert not errors,errors
    (WORK/'regional-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only regional grants used to verify explicit deny and no registration'},ensure_ascii=False,indent=2)+'\n')
@@ -348,13 +348,13 @@ async def main():
     if scenario in ['redirect-disabled','redirect-ambiguous']:assert st['step']=='stopped',st;ok(scenario+' stops safely without repeating an invalid submission')
     else:assert st['step']=='complete',st;ok(scenario+' completes HTTP redirects, native/wrapped inputs, Korean sign-in and bypass')
     if scenario=='redirect-slow':assert elapsed<8,elapsed;ok('DOMContentLoaded injection completes login before slow subresource load finishes')
-   await page.evaluate('chrome.storage.local.set({profiles:[]})');await page.locator('#refresh').click();assert not await page.locator('#empty-detail h2,#empty-detail p,.account-list .empty').count();await expect(page.locator('#empty-add')).to_be_visible()
+   await page.evaluate('chrome.storage.local.set({profiles:[]})');await page.locator('#refresh').click();assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible()
    await page.keyboard.press('Alt+n');await expect(page.locator('#edit-dialog')).to_be_visible();await page.keyboard.press('Alt+n');assert await page.locator('dialog[open]').count()==1;await page.locator('#cancel-edit').click();await page.locator('#empty-add').click();await expect(page.locator('#edit-dialog')).to_be_visible();await page.locator('#cancel-edit').click();ok('empty view is one add button; Alt+N and button open the same editor without stacked dialogs')
    await page.set_viewport_size({'width':780,'height':580});popup=await ctx.new_page();await popup.set_viewport_size({'width':780,'height':580});await popup.goto(f'chrome-extension://{eid}/popup.html');await popup.locator('#empty-add').wait_for();await popup.screenshot(path=str(shots/'empty-popup.png'))
    assert not errors,errors
    (WORK/'redirect-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Actual Linux Chromium extension and loopback TLS fixtures, HTTP302, JET-shaped native controls, initially-disabled Korean button, delayed resource; public real-JET component proof separate'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
-  assert not await page.locator('#empty-detail h2,#empty-detail p,.account-list .empty').count();await expect(page.locator('#empty-add')).to_be_visible();ok('first run has only add-account action and its shortcut')
+  assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible();ok('first run has only add-account action and its shortcut')
   await page.locator('#add').click()
   for k,v in {'p-tenancy':PROFILE['tenancy'],'p-username':PROFILE['username'],'p-password':PROFILE['password'],'p-bypass':PROFILE['bypassCode']}.items():await page.locator('#'+k).fill(v)
   assert not await page.locator('#p-login').count();await page.locator('#account-form button[type=submit]').click();await page.wait_for_timeout(300)

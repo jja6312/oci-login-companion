@@ -1,6 +1,7 @@
 import {normalizeProfile,parseConfig,mergeProfiles,MAX_BYTES,patternsFor} from './lib/model.js';
 import {settingsGet,personalGet,readSource,readList,writeList,configText,createTeamFile,sourceRef} from './lib/sources.js';
-import {handleGet,handleSet} from './lib/db.js';
+import {handleGet,handleSet,handleEntryGet} from './lib/db.js';
+import {requestFileAccess} from './lib/file-access.js';
 import {normalizeAppearance,applyAppearance,ACCENT_PRESETS} from './lib/appearance.js';
 import {icon} from './lib/icons.js';
 import {parseBulkColumns,appendBulkProfiles,columnRows} from './lib/bulk.js';
@@ -9,6 +10,7 @@ for(const el of document.querySelectorAll('[data-icon]'))el.replaceChildren(icon
 let sourceSnapshot=null,editBase=null,deleteBase=null,pendingBase=null,draftHandle=null,savingAccount=false,loadVersion=0,sourceReading=0;
 let profiles=[],filtered=[],selectedId=null,sourceSettings,sourceLabel='',editing=null,pending=null,launching=false,job=null;
 let appearance=normalizeAppearance(),revealed=new Set(),toastTimer,messageTimer;
+let sourceError=null,accessEntry=null,accessBusy=false,automaticAccessTried=false;
 const selected=()=>profiles.find(p=>p.id===selectedId);
 function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,2400);}
 function message(text,error=false){clearTimeout(messageTimer);$('message').textContent=text;$('message').classList.toggle('error',error);$('message').hidden=!text;if(text)messageTimer=setTimeout(()=>$('message').hidden=true,7000);}
@@ -16,13 +18,46 @@ function settingsMessage(text,error=false){$('settings-message').textContent=tex
 function guard(fn,settings=false){return async(...args)=>{try{await fn(...args);}catch(e){if(e.name==='AbortError')return;(settings?settingsMessage:message)(e.message||'작업을 완료하지 못했습니다.',true);}};}
 function resetSecrets(){revealed.clear();for(const b of document.querySelectorAll('[data-reveal]')){b.setAttribute('aria-pressed','false');b.replaceChildren(icon('Eye'));}}
 function canEdit(){return sourceSettings?.mode==='local'||sourceSnapshot?.writable===true;}
-async function load(){
+function canRequestEdit(){return canEdit()||!!(sourceSnapshot&&sourceSettings?.mode==='file'&&sourceSettings.teamWritable);}
+async function restoreTeamAccess(mode='read',entry=accessEntry){
+ if(!entry?.handle||accessBusy)return false;
+ accessBusy=true;$('restore-team').disabled=true;$('restore-team').textContent='접근 확인 중…';
+ try{
+  const granted=await requestFileAccess(entry.handle,mode);
+  const current=await handleEntryGet();if(current.key!==entry.key)return false;
+  return granted;
+ }finally{accessBusy=false;$('restore-team').disabled=false;$('restore-team').textContent='팀 파일 열기';}
+}
+async function ensureEditable(){
+ if(canEdit())return true;
+ if(!sourceSnapshot||!sourceSettings?.teamWritable)return false;
+ const entry=accessEntry;const allowed=await restoreTeamAccess('readwrite',entry);await load();
+ if(!allowed||!canEdit())throw new Error('편집하려면 브라우저에서 파일 쓰기를 허용해 주세요.');
+ return true;
+}
+async function load({requestOnOpen=false}={}){
  const version=++loadVersion;sourceReading++;
  try{
-  let settings,source,error;try{settings=await settingsGet();source=await readList(settings.mode,settings);}catch(e){error=e;}
-  if(version!==loadVersion)return;sourceSettings=settings;sourceSnapshot=source||null;profiles=source?.profiles||[];sourceLabel=source?.label||(settings?.mode==='file'?'팀 파일 연결 필요':'개인 저장소');message(error?.message||'',!!error);
+  let settings,source,error;
+  try{
+   settings=await settingsGet();accessEntry=await handleEntryGet();
+   source=await readList(settings.mode,settings);
+  }catch(e){
+   error=e;
+   // A toolbar click can provide activation to the popup. Never repeatedly
+   // prompt from periodic/focus refresh, and never grant browser permissions ourselves.
+   if(e.code==='TEAM_PERMISSION'&&requestOnOpen&&!automaticAccessTried){
+    automaticAccessTried=true;
+    if(navigator.userActivation?.isActive){
+    if(await restoreTeamAccess(settings?.teamWritable?'readwrite':'read',accessEntry)){
+     try{source=await readList(settings.mode,settings);error=null;}catch(next){error=next;}
+    }
+    }
+   }
+  }
+  if(version!==loadVersion)return;sourceSettings=settings;sourceError=error||null;sourceSnapshot=source||null;profiles=source?.profiles||[];sourceLabel=source?.label||accessEntry?.handle?.name||(settings?.mode==='file'?'팀 파일 연결 필요':'개인 저장소');message(error?.code==='TEAM_PERMISSION'?'':error?.message||'',!!error);
   $('source-label').textContent=settings?.mode==='file'?'팀 파일':'개인 저장소';$('source').title=sourceLabel;
-  $('add').disabled=!canEdit();$('add').title=canEdit()?'계정 추가 (Alt + N)':'설정에서 팀 파일 편집을 허용해 주세요.';
+  $('add').disabled=!canRequestEdit();$('add').title=canRequestEdit()?'계정 추가 (Alt + N)':'팀 파일 접근을 허용해 주세요.';
   resetSecrets();render();await updateStatus();
  }finally{sourceReading--;}
 }
@@ -33,21 +68,22 @@ function render(){
     return score(a)-score(b)||a.tenancy.localeCompare(b.tenancy);
   });
   if(!filtered.some(p=>p.id===selectedId))selectedId=filtered[0]?.id||null;
-  $('count').textContent=profiles.length;$('accounts').replaceChildren();
-  if(!filtered.length&&(profiles.length||(sourceSettings?.mode==='file'&&!sourceSnapshot))){const e=document.createElement('p');e.className='empty';e.textContent=profiles.length?'검색 결과가 없습니다.':sourceSettings?.mode==='file'?'설정에서 팀 파일을 연결해 주세요.':'계정을 추가하거나 설정 파일을 가져오세요.';$('accounts').append(e);}
+  $('count').textContent=sourceError?.code==='TEAM_PERMISSION'?'—':profiles.length;$('accounts').replaceChildren();
+  if(!filtered.length&&sourceError?.code!=='TEAM_PERMISSION'&&(profiles.length||(sourceSettings?.mode==='file'&&!sourceSnapshot))){const e=document.createElement('p');e.className='empty';e.textContent=profiles.length?'검색 결과가 없습니다.':sourceSettings?.mode==='file'?'설정에서 팀 파일을 연결해 주세요.':'계정을 추가하거나 설정 파일을 가져오세요.';$('accounts').append(e);}
   for(const p of filtered){const row=document.createElement('button');row.type='button';row.className='account-row';row.role='option';row.id='row-'+p.id;row.dataset.id=p.id;row.setAttribute('aria-selected',String(p.id===selectedId));const mark=document.createElement('span');mark.className='tenant-mark';mark.textContent='O';const info=document.createElement('span');info.className='account-info';const title=document.createElement('strong');title.textContent=p.tenancy;title.title=p.tenancy;const sub=document.createElement('small');sub.textContent=p.name!==p.tenancy?p.name:p.username;sub.title=p.username;info.append(title,sub);row.append(mark,info);row.onclick=()=>select(p.id);row.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(!e.repeat){select(p.id);launch('login');}}};$('accounts').append(row);}
   renderDetails();
 }
 function select(id){if(id!==selectedId){selectedId=id;resetSecrets();$('more-menu').hidden=true;$('more').setAttribute('aria-expanded','false');$('detail-content').querySelector('details').open=false;}for(const row of document.querySelectorAll('.account-row'))row.setAttribute('aria-selected',String(row.dataset.id===id));renderDetails();}
 function renderDetails(){
   const p=selected();$('detail-content').hidden=!p;$('empty-detail').hidden=!!p;
-  $('empty-add').hidden=!canEdit();
+  $('empty-add').hidden=!canRequestEdit();
+  const recover=sourceSettings?.mode==='file'&&sourceError?.code==='TEAM_PERMISSION';$('team-access').hidden=!recover;$('team-file-label').textContent=recover?(accessEntry?.handle?.name||'연결된 팀 파일'):'';
   if(!p)return;
   $('detail-title').textContent=p.tenancy;$('detail-title').title=p.tenancy;$('detail-subtitle').textContent=[p.name!==p.tenancy?p.name:'',p.identityDomain||'기본 도메인'].filter(Boolean).join(' · ');
   $('username').textContent=p.username;
   for(const key of ['password','bypassCode']){$(key).textContent=revealed.has(key)?p[key]:'••••••••••••';$(key).classList.toggle('masked',!revealed.has(key));}
   $('detail-domain').textContent=p.identityDomain||'지정하지 않음';$('detail-name').textContent=p.name;$('detail-source').textContent=sourceLabel;
-  $('edit').disabled=!canEdit();$('delete').hidden=!canEdit();renderJob();
+  $('edit').disabled=!canRequestEdit();$('delete').hidden=!canRequestEdit();renderJob();
 }
 function renderJob(){const p=selected();const active=job?.profileId===p?.id?job:null;$('job').hidden=!active;$('job-status').textContent=active?.message||'';$('cancel').hidden=!active?.running;$('login').disabled=launching||!!active?.running;$('login-label').textContent=launching?'연결 중…':active?.running?'로그인 진행 중…':'로그인';}
 async function windowScope(){const w=await chrome.windows.getCurrent();return {windowId:w.id,incognito:w.incognito};}
@@ -72,13 +108,15 @@ $('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(!e.repeat)la
 $('login').onclick=()=>launch('login');$('fill').onclick=()=>{$('more-menu').hidden=true;launch('fill');};
 $('diagnostics').onclick=guard(async()=>{const p=selected();if(!p)return;const r=await chrome.runtime.sendMessage({type:'DIAGNOSTICS',profileId:p.id,...await windowScope()});if(!r?.ok)throw new Error('진단 정보를 읽지 못했습니다. 확장을 다시 열어 주세요.');await navigator.clipboard.writeText(JSON.stringify(r.report,null,2));$('more-menu').hidden=true;toast('진단 정보를 복사했습니다');});
 $('cancel').onclick=guard(async()=>{if(job){await chrome.runtime.sendMessage({type:'CANCEL',tabId:job.tabId});await updateStatus();}});
+$('restore-team').onclick=guard(async()=>{const entry=accessEntry;automaticAccessTried=true;const allowed=await restoreTeamAccess(sourceSettings?.teamWritable?'readwrite':'read',entry);await load();if(!allowed&&sourceError?.code==='TEAM_PERMISSION')$('team-access-note').textContent='브라우저 승인 창에서 접근을 허용해 주세요. 파일 연결은 그대로 유지됩니다.';else $('team-access-note').textContent='승인 창에서 “방문할 때마다 허용”을 선택하면 다음에도 자동으로 열립니다.';});
+$('choose-team').onclick=guard(()=>openSettings('storage'));
 $('refresh').onclick=guard(load);
 $('more').onclick=()=>{const open=$('more-menu').hidden;$('more-menu').hidden=!open;$('more').setAttribute('aria-expanded',String(open));};
 document.addEventListener('click',e=>{if(!e.target.closest('.more-wrap')){$('more-menu').hidden=true;$('more').setAttribute('aria-expanded','false');}});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('more-menu').hidden=true;$('more').setAttribute('aria-expanded','false');resetSecrets();renderDetails();}});
 for(const b of document.querySelectorAll('[data-reveal]'))b.onclick=()=>{const k=b.dataset.reveal;if(revealed.has(k))revealed.delete(k);else revealed.add(k);b.setAttribute('aria-pressed',String(revealed.has(k)));b.replaceChildren(icon(revealed.has(k)?'EyeOff':'Eye'));renderDetails();};
 for(const b of document.querySelectorAll('[data-copy]'))b.onclick=guard(async()=>{const p=selected();if(!p)return;await navigator.clipboard.writeText(p[b.dataset.copy]);toast('복사했습니다');});
-async function openEdit(p){if(!canEdit())return;const base=await readSource();if(!base.writable)throw new Error('팀 파일 편집 권한을 확인해 주세요.');if(p){p=base.profiles.find(x=>x.id===p.id);if(!p){await load();throw new Error('계정이 변경되었습니다. 다시 선택해 주세요.');}}editBase=base;editing=p||null;$('edit-title').textContent=p?'계정 편집':'계정 추가';$('account-form').reset();$('account-form').querySelector('[type=submit]').textContent=base.target==='file'?'팀 파일에 저장':'저장';for(const [id,value] of Object.entries({'p-name':p?.name===p?.tenancy?'':p?.name||'','p-tenancy':p?.tenancy||'','p-domain':p?.identityDomain??'Default','p-username':p?.username||'','p-password':p?.password||'','p-bypass':p?.bypassCode||'','p-selectors':p&&Object.keys(p.selectors).length?JSON.stringify(p.selectors,null,2):''}))$(id).value=value;$('edit-error').textContent='';$('show-secrets').checked=false;toggleSecrets();$('edit-dialog').querySelector('details').open=false;$('edit-dialog').showModal();$('p-tenancy').focus();}
+async function openEdit(p){if(!await ensureEditable())return;const base=await readSource();if(!base.writable)throw new Error('팀 파일 편집 권한을 확인해 주세요.');if(p){p=base.profiles.find(x=>x.id===p.id);if(!p){await load();throw new Error('계정이 변경되었습니다. 다시 선택해 주세요.');}}editBase=base;editing=p||null;$('edit-title').textContent=p?'계정 편집':'계정 추가';$('account-form').reset();$('account-form').querySelector('[type=submit]').textContent=base.target==='file'?'팀 파일에 저장':'저장';for(const [id,value] of Object.entries({'p-name':p?.name===p?.tenancy?'':p?.name||'','p-tenancy':p?.tenancy||'','p-domain':p?.identityDomain??'Default','p-username':p?.username||'','p-password':p?.password||'','p-bypass':p?.bypassCode||'','p-selectors':p&&Object.keys(p.selectors).length?JSON.stringify(p.selectors,null,2):''}))$(id).value=value;$('edit-error').textContent='';$('show-secrets').checked=false;toggleSecrets();$('edit-dialog').querySelector('details').open=false;$('edit-dialog').showModal();$('p-tenancy').focus();}
 function closeEdit(){if(savingAccount)return;$('edit-dialog').close();$('account-form').reset();editing=null;editBase=null;}
 function toggleSecrets(){for(const id of ['p-password','p-bypass'])$(id).type=$('show-secrets').checked?'text':'password';}
 $('account-form').onsubmit=async e=>{e.preventDefault();if(savingAccount)return;savingAccount=true;const save=$('account-form').querySelector('[type=submit]');save.disabled=true;try{if(!editBase||(await settingsGet()).mode!==editBase.target)throw new Error('저장 위치가 변경되었습니다. 편집을 다시 열어 주세요.');let selectors;try{selectors=$('p-selectors').value.trim()?JSON.parse($('p-selectors').value):{};}catch{throw new Error('선택자 JSON 형식을 확인해 주세요.');}for(const value of Object.values(selectors||{}))if(typeof value==='string'&&value)document.querySelector(value);const targetSame=editing&&editing.tenancy===$('p-tenancy').value.trim()&&editing.username===$('p-username').value.trim()&&editing.identityDomain===$('p-domain').value.trim();const p=normalizeProfile({id:editing?.id||crypto.randomUUID(),name:$('p-name').value,tenancy:$('p-tenancy').value,identityDomain:$('p-domain').value,username:$('p-username').value,password:$('p-password').value,bypassCode:$('p-bypass').value,identityOrigins:targetSame?editing.identityOrigins:[],selectors});const old=editBase.profiles;await writeList(editBase,editing?old.map(x=>x.id===editing.id?p:x):[...old,p]);selectedId=p.id;$('search').value='';savingAccount=false;closeEdit();await load();toast('계정을 저장했습니다');}catch(err){$('edit-error').textContent=err.message;}finally{savingAccount=false;save.disabled=false;}};
@@ -88,7 +126,7 @@ let bulkDraft=null,bulkSaving=false,bulkSource=null;
 function clearBulkReview(){bulkDraft=null;$('bulk-review').hidden=true;$('bulk-rows').replaceChildren();$('bulk-save').disabled=true;$('bulk-save').textContent='일괄 등록';$('bulk-error').textContent='';}
 function closeBulk(){if(bulkSaving)return;$('bulk-dialog').close();$('bulk-form').reset();for(const t of document.querySelectorAll('[data-column]')){$('bulk-count-'+t.dataset.column).textContent='0행';}clearBulkReview();toggleBulkSecrets();}
 function toggleBulkSecrets(){for(const k of ['password','bypassCode'])$('bulk-'+k).classList.toggle('secret-column',!$('bulk-show-secrets').checked);}
-$('bulk-open').onclick=guard(async()=>{const base=await readSource();if(!base.writable)throw new Error('설정에서 팀 파일 편집을 허용해 주세요.');bulkSource=sourceRef(base);clearBulkReview();$('bulk-dialog').showModal();$('bulk-tenancy').focus();});
+$('bulk-open').onclick=guard(async()=>{if(!await ensureEditable())throw new Error('팀 파일 편집을 먼저 허용해 주세요.');const base=await readSource();if(!base.writable)throw new Error('설정에서 팀 파일 편집을 허용해 주세요.');bulkSource=sourceRef(base);clearBulkReview();$('bulk-dialog').showModal();$('bulk-tenancy').focus();});
 for(const t of document.querySelectorAll('[data-column]'))t.oninput=()=>{clearBulkReview();try{$('bulk-count-'+t.dataset.column).textContent=columnRows(t.value,t.dataset.column).length+'행';}catch{$('bulk-count-'+t.dataset.column).textContent='확인 필요';}};
 $('bulk-preview').onclick=async()=>{clearBulkReview();try{
   const raw=Object.fromEntries([...document.querySelectorAll('[data-column]')].map(t=>[t.dataset.column,t.value]));
@@ -103,7 +141,7 @@ $('bulk-form').onsubmit=async e=>{e.preventDefault();if(!bulkDraft||bulkSaving)r
 }catch(e){$('bulk-error').textContent=e.message;$('bulk-save').disabled=false;$('bulk-save').textContent='다시 등록';}finally{bulkSaving=false;$('bulk-preview').disabled=false;for(const t of document.querySelectorAll('[data-column]'))t.readOnly=false;}};
 $('close-bulk').onclick=closeBulk;$('cancel-bulk').onclick=closeBulk;$('bulk-dialog').addEventListener('cancel',e=>{e.preventDefault();closeBulk();});$('bulk-show-secrets').onchange=toggleBulkSecrets;
 window.addEventListener('pagehide',()=>{bulkDraft=null;for(const t of document.querySelectorAll('[data-column]'))t.value='';});
-$('delete').onclick=guard(async()=>{const p=selected();if(!p||!canEdit())return;deleteBase=await readSource();if(!deleteBase.writable)throw new Error('팀 파일 편집 권한을 확인해 주세요.');deleteBase={...deleteBase,deletingId:p.id};$('more-menu').hidden=true;$('delete-name').textContent=p.tenancy;$('delete-scope').textContent=deleteBase.target==='file'?'연결된 팀 파일에서 삭제합니다. 동기화 후 팀원에게도 반영됩니다.':'개인 저장소에서 이 계정을 삭제합니다.';$('delete-dialog').returnValue='';$('delete-dialog').showModal();});
+$('delete').onclick=guard(async()=>{const p=selected();if(!p||!await ensureEditable())return;deleteBase=await readSource();if(!deleteBase.writable)throw new Error('팀 파일 편집 권한을 확인해 주세요.');deleteBase={...deleteBase,deletingId:p.id};$('more-menu').hidden=true;$('delete-name').textContent=p.tenancy;$('delete-scope').textContent=deleteBase.target==='file'?'연결된 팀 파일에서 삭제합니다. 동기화 후 팀원에게도 반영됩니다.':'개인 저장소에서 이 계정을 삭제합니다.';$('delete-dialog').returnValue='';$('delete-dialog').showModal();});
 $('delete-dialog').addEventListener('close',guard(async()=>{const base=deleteBase;deleteBase=null;if($('delete-dialog').returnValue!=='delete'||!base)return;await writeList(base,base.profiles.filter(p=>p.id!==base.deletingId));await load();toast('계정을 삭제했습니다');}));
 function setSettingsTab(name){for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',String(b.dataset.tab===name));for(const s of document.querySelectorAll('[data-panel]'))s.hidden=s.dataset.panel!==name;settingsMessage('');}
 async function openSettings(tab='appearance'){await syncStorage();$('import-target').value=sourceSettings.mode;$('export-target').value=sourceSettings.mode;setSettingsTab(tab);syncAppearance();$('settings-dialog').showModal();}
@@ -123,7 +161,7 @@ function fileView(){$('file-settings').hidden=document.querySelector('[name=mode
 for(const r of document.querySelectorAll('[name=mode]'))r.onchange=fileView;
 $('pick-file').onclick=guard(async()=>{if(typeof window.showOpenFilePicker!=='function'){fileAccessView();throw new Error('아래 안내에 따라 브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const [h]=await showOpenFilePicker({id:'oci-team',types:[{description:'OCI 계정 JSON',accept:{'application/json':['.json']}}],multiple:false});const f=await h.getFile();if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');parseConfig(await f.text());draftHandle=h;$('file-name').textContent=h.name;$('team-edit').checked=false;fileAccessView();settingsMessage('파일을 선택했습니다. 저장 위치 적용을 눌러 주세요.');},true);
 $('create-team').onclick=guard(async()=>{if(typeof window.showSaveFilePicker!=='function'){fileAccessView();throw new Error('브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const h=await showSaveFilePicker({id:'oci-team',suggestedName:'oci-team-accounts.json',types:[{description:'OCI 팀 목록',accept:{'application/json':['.json']}}]});await createTeamFile(h);draftHandle=h;$('file-name').textContent=h.name;$('team-edit').checked=true;fileAccessView();settingsMessage('빈 팀 파일을 만들었습니다. 저장 위치 적용 후 계정을 추가하거나 가져오세요.');},true);
-$('regrant').onclick=guard(async()=>{const h=draftHandle;if(!h)throw new Error('먼저 파일을 선택해 주세요.');if(await h.requestPermission({mode:$('team-edit').checked?'readwrite':'read'})!=='granted')throw new Error('파일 접근 권한이 필요합니다.');settingsMessage('파일 접근 권한을 허용했습니다.');},true);
+$('regrant').onclick=guard(async()=>{const h=draftHandle;if(!h)throw new Error('먼저 파일을 선택해 주세요.');if(!await requestFileAccess(h,$('team-edit').checked?'readwrite':'read'))throw new Error('브라우저에서 파일 접근을 허용해 주세요.');await load();settingsMessage('접근을 복구했습니다. 승인 창에서 방문할 때마다 허용을 선택하면 다음에도 유지됩니다.');},true);
 $('team-edit').onchange=guard(async()=>{if(!$('team-edit').checked)return;try{if(!draftHandle||await draftHandle.requestPermission({mode:'readwrite'})!=='granted')throw new Error('팀 파일을 선택하고 쓰기 권한을 허용해 주세요.');settingsMessage('편집 권한을 확인했습니다. 저장 위치 적용을 눌러 주세요.');}catch(e){$('team-edit').checked=false;throw e;}},true);
 $('open-file-access').onclick=guard(async()=>{await chrome.tabs.create({url:'chrome://flags/#file-system-access-api'});},true);
 $('copy-file-access').onclick=guard(async()=>{await navigator.clipboard.writeText('brave://flags/#file-system-access-api');settingsMessage('설정 주소를 복사했습니다. 주소창에 붙여 넣어 주세요.');},true);
@@ -142,4 +180,4 @@ setInterval(()=>{if(!document.hidden)updateStatus();},1500);
 function refreshTeam(){if(!document.hidden&&sourceSettings?.mode==='file'&&!sourceReading&&!launching&&!document.querySelector('dialog[open]'))load();}
 window.addEventListener('focus',refreshTeam);document.addEventListener('visibilitychange',refreshTeam);setInterval(refreshTeam,5000);
 window.addEventListener('pagehide',()=>{resetSecrets();$('account-form').reset();pending=null;});
-appearance=normalizeAppearance((await chrome.storage.local.get('appearance')).appearance);syncAppearance();await load();$('search').focus();
+appearance=normalizeAppearance((await chrome.storage.local.get('appearance')).appearance);syncAppearance();await load({requestOnOpen:true});(sourceError?.code==='TEAM_PERMISSION'?$('restore-team'):$('search')).focus();

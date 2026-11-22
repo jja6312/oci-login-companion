@@ -2,10 +2,10 @@
 The headless chooser result is supplied by a real drag-derived handle; browser read/write
 consent is pregranted only in disposable profiles. No helper or OneDrive account is used.
 """
-import asyncio,hashlib,json,pathlib,shutil,struct,subprocess,tempfile
+import asyncio,hashlib,json,pathlib,shutil,struct,subprocess,tempfile,os
 from playwright.async_api import async_playwright,expect
 expect.set_options(timeout=20000)
-R=pathlib.Path(__file__).resolve().parents[1];W=R/'work/v1.3.1';PS='/home/codex/workspaces/tools/powershell-7.5.4/runtime/pwsh';CHROME=str(R/'work/v1.3.1/brave/brave')
+R=pathlib.Path(__file__).resolve().parents[1];W=R/'work'/os.environ.get('OCI_TEST_RELEASE','v1.3.1');PS='/home/codex/workspaces/tools/powershell-7.5.4/runtime/pwsh';CHROME=os.environ.get('OCI_TEST_BRAVE') or str(R/'work/v1.3.1/brave/brave')
 TEAM={'id':'team-shared','name':'가상 팀 운영','tenancy':'fixture-team','identityDomain':'Default','username':'operator@example.invalid','password':'fixture-original','bypassCode':'000123','identityOrigins':[],'selectors':{}}
 checks=[]
 def ok(s):checks.append(s);print('PASS',s,flush=True)
@@ -20,7 +20,7 @@ async def main():
     prof=root/('profile-'+name);pref=prof/'Default/Preferences';pref.parent.mkdir(parents=True);pref.write_text(json.dumps({'profile':{'default_content_setting_values':{'file_system_write_guard':1,'file_system_read_guard':1}}}))
     async def launch():
      c=await p.chromium.launch_persistent_context(str(prof),executable_path=CHROME,headless=True,args=['--no-sandbox','--disable-extensions-except='+str(ext),'--load-extension='+str(ext)],viewport={'width':1200,'height':820});await c.route('https://**/*',lambda r:r.abort());worker=c.service_workers[0] if c.service_workers else await c.wait_for_event('serviceworker');eid=worker.url.split('/')[2];a=await c.new_page();a.on('pageerror',lambda e:errors.append(str(e)));await a.goto('chrome-extension://'+eid+'/options.html');return c,worker,eid,a
-    c,worker,eid,a=await launch();await expect(a.locator('.wordmark')).to_contain_text('1.3.1');await expect(a.locator('[data-panel=help] .version')).to_contain_text('1.3.1');assert await a.evaluate('typeof showOpenFilePicker')=='undefined';await a.locator('#settings').click();await a.locator('[data-tab=storage]').click();await a.locator('[name=mode][value=file]').check();await expect(a.locator('#file-access-help')).to_be_visible();assert await a.locator('#pick-file').is_disabled();assert await a.locator('#native-path,#file-kind,#allow-native').count()==0
+    c,worker,eid,a=await launch();await expect(a.locator('.wordmark')).to_contain_text(json.loads((R/'extension/manifest.json').read_text())['version']);await expect(a.locator('[data-panel=help] .version')).to_contain_text(json.loads((R/'extension/manifest.json').read_text())['version']);assert await a.evaluate('typeof showOpenFilePicker')=='undefined';await a.locator('#settings').click();await a.locator('[data-tab=storage]').click();await a.locator('[name=mode][value=file]').check();await expect(a.locator('#file-access-help')).to_be_visible();assert await a.locator('#pick-file').is_disabled();assert await a.locator('#native-path,#file-kind,#allow-native').count()==0
     if name=='a':
      ok('official Brave default has no picker API and shows actionable setup without helper/path controls');await a.set_viewport_size({'width':780,'height':580});await a.screenshot(path=str(shots/'brave-setup-780.png'));await a.set_viewport_size({'width':390,'height':844});await a.screenshot(path=str(shots/'brave-setup-390.png'));assert await a.evaluate('document.documentElement.scrollWidth<=innerWidth');ok('missing-API setup fits actual popup width and390px without horizontal overflow');await a.set_viewport_size({'width':1200,'height':820})
     async with c.expect_page() as new:await a.locator('#open-file-access').click()

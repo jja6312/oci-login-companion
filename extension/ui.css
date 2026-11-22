@@ -23,3 +23,5 @@ dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);bo
 #file-settings label.checkbox{flex-direction:row;align-items:center;justify-content:flex-start}
 
 .file-access-help{padding:16px;background:var(--card-alt);border:1px solid var(--line);border-radius:12px;margin:16px 0}.file-access-help p,.file-access-help ol{color:var(--muted);font-size:13px;line-height:1.65}.file-access-help ol{padding-left:20px}.file-access-help strong{font-size:14px}.file-access-help .button-row{flex-wrap:wrap}
+
+.team-access{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:320px;padding:20px;text-align:center}.team-access>p:first-child{font-size:14px;color:var(--text);overflow-wrap:anywhere}.team-access>p:nth-of-type(2){font-size:12px;line-height:1.7;color:var(--muted);text-wrap:pretty}.team-access .text-button{font-size:12px}

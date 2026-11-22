@@ -1,5 +1,6 @@
 import {DEFAULT_SETTINGS,MAX_BYTES,parseConfig,normalizeConfig} from './model.js';
 import {handleEntryGet} from './db.js';
+import {TeamFileError,permissionError} from './file-access.js';
 export async function settingsGet(){return {...DEFAULT_SETTINGS,...(await chrome.storage.local.get('settings')).settings};}
 export async function personalGet(){return normalizeConfig({schemaVersion:1,profiles:(await chrome.storage.local.get('profiles')).profiles||[]}).profiles;}
 export async function personalSet(profiles){await chrome.storage.local.set({profiles:normalizeConfig({schemaVersion:1,profiles}).profiles});}
@@ -9,7 +10,7 @@ const connection=key=>JSON.stringify(['picker',key||'legacy']);
 export function sourceRef(s){return {target:s.target,connection:s.connection??null};}
 function changed(){return new Error('목록이 변경되었습니다. 최신 목록을 다시 확인한 뒤 저장해 주세요.');}
 async function fileData(handle){
- let file;try{file=await handle.getFile();}catch{throw new Error('연결한 파일을 찾을 수 없습니다. 이동·교체된 파일을 다시 선택해 주세요.');}
+ let file;try{file=await handle.getFile();}catch(e){if(['NotAllowedError','SecurityError'].includes(e.name))throw permissionError(handle);throw new TeamFileError('TEAM_FILE_MISSING','연결한 파일을 찾을 수 없습니다. 파일을 다시 선택해 주세요.',handle);}
  if(file.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');
  const bytes=await file.arrayBuffer();if(bytes.byteLength>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');
  let text;try{text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw new Error('UTF-8 JSON 파일을 선택해 주세요.');}
@@ -20,8 +21,8 @@ export async function readList(target,settings){
  if(target!=='file')throw new Error('저장 방식을 다시 선택해 주세요.');
  const s=settings||await settingsGet();let data,handle,canWrite,key;
  if(s.fileKind==='native')throw new Error('팀 파일을 다시 선택해 주세요. 전체 경로 연결은 파일 선택 방식으로 통합되었습니다.');
- const entry=await handleEntryGet();handle=entry.handle;key=entry.key;if(!handle)throw new Error('설정에서 팀 파일을 선택해 주세요.');
- if(await handle.queryPermission({mode:'read'})!=='granted')throw new Error('파일 읽기 권한이 필요합니다. 설정에서 파일 접근을 다시 허용해 주세요.');
+ const entry=await handleEntryGet();handle=entry.handle;key=entry.key;if(!handle)throw new TeamFileError('TEAM_NOT_CONNECTED','팀 파일을 선택해 주세요.');
+ if(await handle.queryPermission({mode:'read'})!=='granted')throw permissionError(handle);
  data=await fileData(handle);canWrite=await handle.queryPermission({mode:'readwrite'})==='granted';
  return {target,profiles:parseConfig(data.text).profiles,label:data.label,revision:data.revision,connection:connection(key),handle,readAt:Date.now(),writable:s.teamWritable===true&&canWrite};
 }
