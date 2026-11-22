@@ -1,7 +1,7 @@
 export const MAX_BYTES = 524288;
 export const MAX_PROFILES = 300;
 export const SELECTOR_KEYS = ['tenancy','domain','username','password','bypass','submitTenancy','submitDomain','submitCredentials','alternative','bypassChoice','submitBypass'];
-export const DEFAULT_SETTINGS = Object.freeze({mode:'local', fileKind:'picker', teamWritable:false});
+export const DEFAULT_SETTINGS = Object.freeze({mode:'local', fileKind:'picker'});
 export const CONSOLE_ORIGIN = 'https://cloud.oracle.com';
 export const ENTRY_ORIGIN='https://www.oracle.com';
 export const ENTRY_PATH='/cloud/sign-in.html';

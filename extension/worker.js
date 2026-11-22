@@ -113,7 +113,7 @@ async function handle(m,s){
       const job=st&&all[`job:${st.tabId}`];return {ok:true,report:diagnosticReport(job?{...st,debug:snapshot(job)}:st,chrome.runtime.getManifest().version,scope.incognito)};
     }
     if(m.type==='BULK_ADD'){
-      try{const base=await readSource();if(!base.writable)throw new Error('설정에서 팀 파일 편집을 허용해 주세요.');const ref=sourceRef(base);if(!m.source||m.source.target!==ref.target||(m.source.connection??null)!==ref.connection)throw new Error('저장 위치가 변경되었습니다. 일괄 등록을 다시 열어 주세요.');const next=appendBulkProfiles(base.profiles,m.profiles);await writeList(base,next);return {ok:true,count:m.profiles.length};}catch(e){throw new UserError(e.message);}
+      try{const base=await readSource();if(!base.writable)throw new Error('브라우저에서 팀 파일 쓰기를 허용해 주세요.');const ref=sourceRef(base);if(!m.source||m.source.target!==ref.target||(m.source.connection??null)!==ref.connection)throw new Error('저장 위치가 변경되었습니다. 일괄 등록을 다시 열어 주세요.');const next=appendBulkProfiles(base.profiles,m.profiles);await writeList(base,next);return {ok:true,count:m.profiles.length};}catch(e){throw new UserError(e.message);}
     }
     if(m.type==='CANCEL'){await finish(m.tabId,'자동 로그인을 중지했습니다.','stopped','cancelled');return {ok:true};}
     if(m.type==='REGISTER'){await register();return {ok:true};}
@@ -161,5 +161,5 @@ chrome.tabs.onUpdated.addListener((id,c,t)=>{if(c.status==='complete')queue(id,(
 chrome.tabs.onRemoved.addListener(id=>queue(id,async()=>{await chrome.storage.session.remove([`job:${id}`,`status:${id}`]);await chrome.alarms.clear(`expire:${id}`);}).catch(()=>{}));
 chrome.alarms.onAlarm.addListener(a=>{if(a.name.startsWith('expire:'))queue(Number(a.name.slice(7)),()=>finish(Number(a.name.slice(7)),'시간이 지났습니다. 다시 로그인해 주세요.')).catch(()=>{});});
 chrome.permissions.onRemoved.addListener(()=>register().catch(()=>{}));
-chrome.runtime.onInstalled.addListener(()=>ready.then(register).catch(()=>{}));
+chrome.runtime.onInstalled.addListener(details=>ready.then(async()=>{if(details.reason==='update')await navigator.locks.request('oci-companion-onboarding',async()=>{const saved=await chrome.storage.local.get('onboarding');if(!Object.hasOwn(saved,'onboarding'))await chrome.storage.local.set({onboarding:{complete:true,version:1}});});await register();}).catch(()=>{}));
 chrome.runtime.onStartup.addListener(()=>ready.then(register).catch(()=>{}));

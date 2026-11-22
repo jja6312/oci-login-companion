@@ -130,7 +130,7 @@ async def main():
     except ConnectionError:pass
   tls=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);tls.load_cert_chain(cert,key);server=await asyncio.start_server(serve,'127.0.0.1',port,ssl=tls)
 
-  worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker');eid=worker.url.split('/')[2]
+  worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker');await worker.evaluate("chrome.storage.local.set({onboarding:{complete:true,version:1}})");eid=worker.url.split('/')[2]
   page=await ctx.new_page();page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' else None)
   await page.goto(f'chrome-extension://{eid}/options.html');await page.locator('#add').wait_for();await page.wait_for_timeout(300)
   if '--session-only' in sys.argv:
@@ -204,8 +204,8 @@ async def main():
    await page.locator('#bulk-open').click()
    for k in ['tenancy','username','password','bypassCode']:await page.locator('#bulk-'+k).fill(vals[k].split('\n')[0])
    await page.locator('#bulk-preview').click();assert '중복' in await page.locator('#bulk-error').inner_text();assert await page.locator('#bulk-save').is_disabled();await page.keyboard.press('Escape');assert not await page.locator('#bulk-dialog').is_visible();assert await page.locator('#bulk-bypassCode').input_value()=='';ok('duplicate target is rejected and Escape clears the whole unsaved batch')
-   await page.evaluate("chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}})")
-   denied=await page.evaluate('(p)=>chrome.runtime.sendMessage({type:"BULK_ADD",profiles:[p]})',PROFILE);assert not denied['ok'] and '팀' in denied['error'];assert len(await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
+   await page.evaluate("""async()=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('bulk-write-denied.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[]}));await w.close();await(await import('./lib/db.js')).handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker'}})}""")
+   await worker.evaluate("()=>{globalThis.fixturePermissionQuery=FileSystemFileHandle.prototype.queryPermission;FileSystemFileHandle.prototype.queryPermission=function(x){return x?.mode==='readwrite'?Promise.resolve('denied'):fixturePermissionQuery.call(this,x);};}");denied=await page.evaluate('async(p)=>{const s=await import("./lib/sources.js");return chrome.runtime.sendMessage({type:"BULK_ADD",source:s.sourceRef(await s.readSource()),profiles:[p]});}',PROFILE);await worker.evaluate("()=>{FileSystemFileHandle.prototype.queryPermission=fixturePermissionQuery;}");assert not denied['ok'] and '팀' in denied['error'];assert len(await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
    await page.evaluate("chrome.storage.local.set({settings:{mode:'local',fileKind:'picker',nativePath:''}})")
    # Enable private access through the real extension settings in this disposable browser.
    settings=await ctx.new_page();await settings.goto('chrome://extensions/?id='+eid);await settings.locator('#allow-incognito').click()
@@ -354,7 +354,7 @@ async def main():
    assert not errors,errors
    (WORK/'redirect-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Actual Linux Chromium extension and loopback TLS fixtures, HTTP302, JET-shaped native controls, initially-disabled Korean button, delayed resource; public real-JET component proof separate'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
-  assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible();ok('first run has only add-account action and its shortcut')
+  assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible();ok('completed local setup has only add-account action and its shortcut')
   await page.locator('#add').click()
   for k,v in {'p-tenancy':PROFILE['tenancy'],'p-username':PROFILE['username'],'p-password':PROFILE['password'],'p-bypass':PROFILE['bypassCode']}.items():await page.locator('#'+k).fill(v)
   assert not await page.locator('#p-login').count();await page.locator('#account-form button[type=submit]').click();await page.wait_for_timeout(300)
@@ -427,7 +427,7 @@ async def main():
   await page.evaluate('''async(id)=>{const k='job:'+id;const j=(await chrome.storage.session.get(k))[k];j.expiresAt=Date.now()-1;await chrome.storage.session.set({[k]:j});}''',tid);await page.wait_for_timeout(1500);assert not await page.evaluate('(id)=>chrome.storage.session.get("job:"+id)',tid);ok('expired job secrets are removed')
   # Team file handles persist; always re-read current bytes; errors do not fallback.
   await page.evaluate('''async(p)=>{const {handleSet}=await import('./lib/db.js');const d=await navigator.storage.getDirectory();const h=await d.getFileHandle('fixture-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',profile)
-  await page.reload();await page.wait_for_timeout(200);assert await page.locator('#add').is_disabled() and await page.locator('#edit').is_disabled();ok('team source displays accounts read-only')
+  await page.reload();await page.wait_for_timeout(200);assert await page.locator('#add').is_enabled() and await page.locator('#edit').is_enabled();ok('connected team source is editable by default without an application checkbox')
   await page.evaluate('''async(p)=>{const d=await navigator.storage.getDirectory();const h=await d.getFileHandle('fixture-team.json');const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[{...p,name:'변경된 팀 계정'}]}));await w.close();}''',profile);await page.locator('#refresh').click();await page.wait_for_timeout(200);assert '변경된 팀 계정' in await page.locator('#accounts').inner_text();ok('file handle persists and changed team bytes are reread')
   await page.evaluate('''async()=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('fixture-team.json');const w=await h.createWritable();await w.write('broken JSON');await w.close();}''');await page.locator('#refresh').click();await page.wait_for_timeout(150);assert not await page.locator('.account-row').count();ok('invalid team file never falls back to personal credentials')
   # Real UI edit/delete, sample preview data never includes user credentials.
