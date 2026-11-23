@@ -20,14 +20,14 @@ async def main():
     report={}
     with tempfile.TemporaryDirectory(prefix='oci-profile-check-') as temporary:
         base=Path(temporary);local=base/'local';target=local/'Cloudragon/OCICompanion';ext=target/'extension'
-        data=(ROOT/'tests/fixtures/visual-v1.3.2-r11-payload.zip').read_bytes()
-        with zipfile.ZipFile(ROOT/'tests/fixtures/visual-v1.3.2-r11-payload.zip') as z:
+        data=(ROOT/'tests/fixtures/visual-v1.3.3-r12-payload.zip').read_bytes()
+        with zipfile.ZipFile(ROOT/'tests/fixtures/visual-v1.3.3-r12-payload.zip') as z:
             baseline=json.loads(z.read('payload/baseline.json'))
             for name in z.namelist():
                 if name.startswith('payload/extension/'):
                     file=target/name[8:];file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(z.read(name))
         (target/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':hashlib.sha256(data).hexdigest()}))
-        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.3.2','payloadSha256':hashlib.sha256(data).hexdigest()}))
+        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.3.3','payloadSha256':hashlib.sha256(data).hexdigest()}))
         fixture={'profiles':[{'id':'demo-profile','tenancy':'example-tenant','name':'데모 계정','username':'demo@example.invalid','password':'synthetic-value','bypassCode':'000123'}],
                  'appearance':{'mode':'light','accent':'#176b61'},'settings':{'mode':'file','fileKind':'picker','nativePath':'','teamWritable':False}}
         async with async_playwright() as p:
@@ -41,13 +41,13 @@ async def main():
             await page.evaluate("""async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('demo-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:p}));await w.close();await(await import('./lib/db.js')).handleSet(h);} """,fixture['profiles'])
             await context.close()
             env={**os.environ,'CLOUDRAGON_SETUP_LOCAL_DATA':str(local),'CLOUDRAGON_SETUP_NO_LAUNCH':'1','CLOUDRAGON_SETUP_NO_PAUSE':'1'}
-            cmd=ROOT/'dist/windows-visual-r12/Install.cmd'
+            cmd=ROOT/'dist/windows-visual-r13/Install.cmd'
             if os.name=='nt':
                 command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(cmd)+'""'
                 result=subprocess.run(command,env=env,capture_output=True,timeout=60)
                 report['installer_execution']='Actual Windows CMD/PowerShell'
             else:
-                payload=ROOT/'dist/windows-visual-r12/_support/payload.zip'
+                payload=ROOT/'dist/windows-visual-r13/_support/payload.zip'
                 code='. '+q(ROOT/'windows/setup-visual/Update.Core.ps1')+';. '+q(ROOT/'windows/setup-visual/Install.Core.ps1')+';Install-OrUpdateOciCompanion -Payload ([IO.File]::ReadAllBytes('+q(payload)+')) -ExpectedHash '+q(hashlib.sha256(payload.read_bytes()).hexdigest())+' -LocalData '+q(local)+' -NoLaunch|Out-Null'
                 result=subprocess.run([PS,'-NoLogo','-NoProfile','-NonInteractive','-Command',code],env=env,capture_output=True,timeout=60)
                 report['installer_execution']='Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI'
@@ -68,10 +68,11 @@ async def main():
             report['same_extension_id']=True;report['accounts_theme_source_and_opfs_handle_preserved']=True
             browser=await p.chromium.launch(**browser_options(),args=(['--no-sandbox'] if os.name!='nt' else []));context=await browser.new_context(viewport={'width':1180,'height':900})
             await context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{window.copiedText=t}}});")
-            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r12/_support/Guide-Preview.html').as_uri())
+            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r13/_support/Guide-Preview.html').as_uri())
             await expect(page.locator('h1')).to_have_text('빨간 박스를 따라 설정하세요.')
             await page.locator('#copy-path').click();assert await page.evaluate('window.copiedText')==r'%LOCALAPPDATA%\Cloudragon\OCICompanion\extension'
             await page.locator('[data-scheme=brave]').click();await page.locator('#copy-manager').click();assert await page.evaluate('window.copiedText')=='brave://extensions'
+            await page.locator('[data-scheme=prisma]').click();await page.locator('#copy-manager').click();assert await page.evaluate('window.copiedText')=='prisma://extensions/';await expect(page.locator('#prisma-notice')).to_be_visible();report['prisma_guide_manager_copy_and_policy_notice']=True
             await page.locator('#update-mode').click();await expect(page.locator('.update-only')).to_be_visible();await expect(page.locator('.new-only').first).to_be_hidden()
             await page.locator('#new-mode').click()
             for width in (1180,768,390):

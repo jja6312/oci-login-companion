@@ -3,7 +3,7 @@ Native chooser/consent boundaries are supplied by fixture handles; no user files
 """
 import asyncio,json,pathlib,shutil,tempfile,os
 from playwright.async_api import async_playwright,expect
-R=pathlib.Path(__file__).resolve().parents[1];W=R/'work/v1.3.3';CHROME=os.environ.get('OCI_TEST_CHROMIUM','/home/codex/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome');BRAVE=os.environ.get('OCI_TEST_BRAVE','/home/codex/workspaces/oci-login-companion/work/v1.3.1/brave/brave')
+R=pathlib.Path(__file__).resolve().parents[1];W=R/'work'/os.environ.get('OCI_TEST_RELEASE','v1.3.3');CHROME=os.environ.get('OCI_TEST_CHROMIUM','/home/codex/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome');BRAVE=os.environ.get('OCI_TEST_BRAVE','/home/codex/workspaces/oci-login-companion/work/v1.3.1/brave/brave')
 P={'id':'setup-fixture','name':'가상 고객사','tenancy':'setup-team','identityDomain':'Default','username':'operator@example.invalid','password':' exact password ','bypassCode':'000123'};checks=[]
 def ok(s):checks.append(s);print('PASS',s,flush=True)
 async def main():

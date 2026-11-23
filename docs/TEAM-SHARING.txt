@@ -1,4 +1,4 @@
-OCI Companion 1.3.3 — 개인 목록과 팀 파일
+OCI Companion 1.3.4 — 개인 목록과 팀 파일
 
 팀 공유 시작
 1. 처음 실행할 때 팀 공유 파일을 선택합니다.
@@ -69,3 +69,5 @@ https://github.com/brave/brave-browser/issues/29411
 승인 창의 방문할 때마다 허용을 선택하면 브라우저가 허용한 권한을 다음에도 자동 사용합니다.
 프로그램이 브라우저 권한을 자동 승인하거나 설정 파일을 바꾸지는 않습니다. 권한이 없으면 오래된 암호로 대신 로그인하지 않습니다.
 https://developer.chrome.com/blog/persistent-permissions-for-the-file-system-access-api
+
+Prisma Browser 데스크톱은 PRISMA-BROWSER.txt의 설치·조직 정책 안내를 참고하세요. 확장/파일 접근/시크릿 허용은 조직 정책에 따릅니다. 실제 Prisma 환경 검증은 별도입니다.

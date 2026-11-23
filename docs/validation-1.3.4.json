@@ -1,0 +1,162 @@
+{
+  "version": "1.3.4",
+  "installerRevision": 13,
+  "freshAppChecksPassed": 138,
+  "model": {
+    "passed": 46,
+    "failed": 0
+  },
+  "reports": {
+    "browser": {
+      "count": 31,
+      "checks": [
+        "completed local setup has only add-account action and its shortcut",
+        "four-field editor saves leading-zero bypass code without website URL",
+        "bypass reveal is explicit and masked on reload",
+        "user-triggered copy shows confirmation",
+        "custom color and light mode persist independently of credentials",
+        "explicit export includes selected source",
+        "import conflict preserves account",
+        "explicit import update succeeds",
+        "tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console",
+        "verified identity metadata is learned without storing a website field",
+        "same reusable admin bypass code succeeds on second login",
+        "custom domain picker, Korean alternate label and styled bypass radio complete",
+        "automatic scripts registered only for exact granted origins",
+        "SMS challenge with bypass link never receives static code",
+        "duplicate screen stops before secret entry",
+        "invalid screen stops before secret entry",
+        "unverified navigation to another identity receives no credentials",
+        "changed target metadata aborts login",
+        "fill-only populates credentials without submitting",
+        "content script cannot read local vault storage",
+        "expired job secrets are removed",
+        "connected team source is editable by default without an application checkbox",
+        "file handle persists and changed team bytes are reread",
+        "invalid team file never falls back to personal credentials",
+        "tenancy search selects matching accounts and handles no results",
+        "account editing updates the selected tenancy",
+        "explicit account deletion removes only selected account",
+        "vault fits desktop, tablet and 390px without horizontal overflow",
+        "appearance is shared between popup and options",
+        "actual 780x580 popup fits approved two-column layout",
+        "extension UI has no JavaScript or CSP console errors"
+      ],
+      "network": "OCI hostnames mapped to loopback-only TLS fixture; no real Oracle traffic",
+      "scope": "Linux Chromium; fixture permissions pregranted; OPFS file handles; real OCI, Windows native launch and Chrome permission dialog unverified"
+    },
+    "brave-files": {
+      "count": 31,
+      "checks": [
+        "official Brave default has no picker API and shows actionable setup without helper/path controls",
+        "missing-API setup fits actual popup width and390px without horizontal overflow",
+        "setup button opens the real Brave flag and its Enabled option is selectable",
+        "after one real Brave flag change and restart, picker APIs exist and setup message disappears without feature CLI flags",
+        "two independent browser profiles read one team file while retaining separate personal lists",
+        "team account editing writes the connected file once and preserves exact code and personal data",
+        "another profile rereads the updated password on focus and on reopening the extension",
+        "worker login startup reads the new team password rather than a UI snapshot or personal credential",
+        "stale editor cannot overwrite a teammate change and retains its unsaved fields",
+        "personal export can be selected while team mode is active and excludes team credentials",
+        "team export rereads the connected file and round-trips the exact password and leading-zero bypass",
+        "personal import preserves the connected team file and existing personal accounts",
+        "team import requires explicit same-ID update permission and writes into the shared file",
+        "another profile uses an imported team password on its next login start without importing a local copy",
+        "team import detects changes after preview and retries only after an explicit latest-list review",
+        "team bulk registration appends to the shared file without adding team accounts to personal storage",
+        "staged bulk registration cannot follow a switched source into a personal or different team list",
+        "team deletion names its shared scope and removes only the selected file account",
+        "actual browser write-permission denial blocks bulk writes while allowing the UI to request permission on edit",
+        "invalid team bytes block login and clear the list while retaining unrelated personal accounts",
+        "legacy teamWritable=false no longer restricts editing of a browser-writable picker file",
+        "picker-connected team file saves through a real file handle with exact code and fresh readback",
+        "picker writer rejects a stale revision and preserves externally changed file bytes",
+        "reconnecting an identical-content file still rejects an edit bound to the previous team file",
+        "choosing another file does not change the live connection until Apply is pressed",
+        "new team file starts empty and existing files are preserved by the create action",
+        "new team file UI creates, connects and adds its first account directly into the file",
+        "team export works from personal mode without switching the active list",
+        "personal/team transfer and file settings fit desktop, actual popup width and390px with scrollable dialogs",
+        "legacy path mode requires reselecting the same JSON and cannot silently use an old picker handle or personal list",
+        "new sharing screens have no JavaScript errors"
+      ],
+      "scope": "Official Brave1.100.58 Linux arm64 with SHA-verified release; two disposable profiles use real external FileSystemFileHandles on the same fictional JSON. Real Brave flags UI Enabled/restart tested. Native chooser result is supplied by a drag-derived real handle and file read/write consent pregranted only in disposable profiles; filesystem methods are real. OPFS tests cover create/cancel/conflicts. OCI navigation suppressed/external page requests blocked. Actual Windows chooser/consent, user Brave version, OneDrive cloud transport and customer authentication unverified."
+    },
+    "onboarding": {
+      "count": 22,
+      "checks": [
+        "a fresh installation asks local versus team before any storage mode is committed; no edit-permission checkbox exists",
+        "first-step choices fit popup and390px",
+        "local selection completes immediately with no file and opens the unchanged Add-account state",
+        "completed local setup is not shown again on reopening",
+        "team draft resumes at new/existing choice and Back never silently selects local storage",
+        "cancelling an existing-file picker leaves setup incomplete and retryable",
+        "invalid JSON stays on the file step without saving a connection or changing file bytes",
+        "existing JSON connects and is editable by default without settings Apply, an opt-in flag, an import copy or changing its original bytes",
+        "default team editing writes directly into the selected existing file",
+        "completed team setup preserves the same binding and skips the wizard",
+        "new JSON starts empty, connects with writing enabled, and accepts the first account directly",
+        "new-file creation preserves an existing nonempty file and does not complete setup",
+        "cancelling new-file creation leaves the file choice available",
+        "the first completed setup wins across two windows and a delayed picker cannot overwrite its storage choice",
+        "legacy personal accounts and theme migrate without showing setup or rewriting account values",
+        "legacy team connections retain their binding and ignore the removed teamWritable=false restriction",
+        "the production update listener, invoked with a fixture update event, preserves an old empty setup and closes a pending initial dialog without writing accounts or settings",
+        "an explicit unfinished file-choice draft survives a later extension update event",
+        "Brave with disabled file API keeps the team step and provides its browser setup action",
+        "after the real Brave flag UI and browser restart, the unfinished team step resumes with working file APIs",
+        "Brave finishes existing-file setup and retains the connected list after a full browser restart",
+        "first-run choices, failures and migrations have no JavaScript errors"
+      ],
+      "scope": "Disposable Linux Chromium and SHA-verified official Brave1.100.58; real extension storage, IndexedDB handles and OPFS reads/writes. Native picker results supplied by fixture handles; actual Brave flag UI/restarts used. Two migration checks invoke the real production listener with a fixture update event; native installed-extension update event delivery is not automated. Windows native pickers/consent and actual user OneDrive/OCI data not used."
+    },
+    "prisma-compat": {
+      "count": 8,
+      "checks": [
+        "a blocked first-run open picker shows Prisma administrator guidance without completing setup or binding a file",
+        "policy guidance and retry/back controls fit popup and390px with the existing scrollable dialog",
+        "a denied new-file picker creates no file binding or personal credential copy and remains retryable",
+        "retry after permission approval connects the selected real handle with exact credentials and no helper or alternate browser",
+        "settings policy denial preserves the active team binding and current file credentials",
+        "settings new-file denial leaves the previous shared source unchanged",
+        "an explicitly selected local vault remains usable when browser policy removes both file picker APIs",
+        "Prisma shortcut-manager guidance is available and policy paths produce no JavaScript errors"
+      ],
+      "scope": "Linux Chromium with native picker SecurityError/NotAllowedError/missing-API fixtures and actual extension storage/IDB/OPFS. This is compatibility/error-flow testing, not execution of Prisma Browser or its live organizational policy. Native Prisma install, extension allow-list, actual OCI login, file/DLP permissions and incognito policy remain unverified."
+    }
+  },
+  "profileAndGuide": {
+    "installer_execution": "Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI",
+    "existing_setup_skipped_and_team_editable_by_default": true,
+    "same_extension_id": true,
+    "accounts_theme_source_and_opfs_handle_preserved": true,
+    "prisma_guide_manager_copy_and_policy_notice": true,
+    "guide_copy_handlers_new_update_modes_and_three_viewports": true,
+    "guide_native_clipboard_changed": false
+  },
+  "prismaBinaryExecuted": false,
+  "userPCPrismaVerified": false,
+  "browserChanges": [
+    "Prisma guide selector and documented prisma://extensions/ manager copy",
+    "Missing/denied picker guidance names browser permission and Prisma organizational policy",
+    "Explicitly selected local mode works without picker APIs",
+    "Denied picker preserves existing source and does not fall back to personal credentials"
+  ],
+  "unchanged": [
+    "OCI auth engine, origin checks, host/API permissions, credential storage schema, theme and same-path installation"
+  ],
+  "securityState": "Existing plaintext storage; encryption/unlock proposal has not been implemented",
+  "references": [
+    "https://docs.paloaltonetworks.com/prisma-browser/deployment/troubleshoot-the-prisma-browser",
+    "https://docs.paloaltonetworks.com/prisma-browser/administration/manage-prisma-browser-policy-profiles/configure-prisma-browser-browser-security/configure-protected-browsing/file-system-api",
+    "https://docs.paloaltonetworks.com/prisma-browser/administration/manage-prisma-browser-policy-profiles/configure-prisma-browser-browser-security/configure-browser-hardening/developer-tools",
+    "https://pan.dev/prisma-browser/guide/security-rules/"
+  ],
+  "limitations": [
+    "Prisma Browser binary, actual user organizational extension/developer/file/DLP/incognito policies and actual customer OCI authentication not executed",
+    "Picker failures and successful chooser results are controlled in Chromium fixtures; real storage/IDB/OPFS methods are used",
+    "Previous1.3.3 features17/team-worker3/permission14 results retained as baseline in validation-1.3.3.json and not counted as fresh tests here"
+  ],
+  "uiLint": "0FAIL; two existing hex padStart warnings",
+  "windowsInstaller": "Matching release-commit Windows CI must pass model46 and actual CMD/PowerShell installation15 before release publication"
+}

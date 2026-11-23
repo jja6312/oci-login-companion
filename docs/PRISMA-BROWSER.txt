@@ -1,0 +1,44 @@
+OCI Companion1.3.4 — Palo Alto Networks Prisma Browser 데스크톱
+
+설치
+1. Install.cmd를 실행합니다. Chrome·Brave와 같은 확장 파일과 경로를 사용합니다.
+2. Prisma의 주소창에 prisma://extensions/ 를 입력합니다.
+3. 조직에서 허용한 경우 개발자 모드 → 압축해제된 확장 프로그램 로드에서 다음 폴더를 선택합니다.
+   %LOCALAPPDATA%\Cloudragon\OCICompanion\extension
+4. 기존 Prisma 등록이 있으면 카드를 삭제하지 말고 새로고침합니다.
+5. Ctrl+Shift+Space로 열고 첫 실행의 로컬 저장소 / 팀 공유 파일을 선택합니다.
+   단축키가 겹치면 확장 관리의 단축키 메뉴에서 변경합니다.
+
+다른 브라우저에서 옮길 때
+Chrome·Brave·Prisma의 개인 확장 저장소는 서로 분리됩니다.
+기존 브라우저의 설정 → 데이터 → 개인 목록 내보내기 후 Prisma에서 가져오거나,
+Prisma의 팀 공유 파일 → 기존 파일 선택에서 같은 OneDrive JSON을 연결합니다.
+프로그램이 다른 브라우저의 프로필이나 인증정보를 자동으로 복사하지 않습니다.
+
+조직 관리자 확인 항목
+- 확장 허용 목록에서 OCI Companion 사용이 승인되어야 합니다. Prisma 확장 카드의 실제 ID로 확인합니다.
+- 압축해제 등록은 Developer Tools / Developer Mode 정책이 허용해야 합니다.
+- 팀 파일 선택이 차단되면 File System API와 로컬 파일 / DLP 정책을 확인합니다.
+- 시크릿을 쓰려면 조직 Incognito 정책과 OCI Companion의 시크릿 허용이 모두 필요합니다.
+- 자동입력, 클립보드, 내보내기가 차단되면 관련 조직 정책도 확인합니다.
+관리자가 필요한 범위만 승인해야 합니다. 설치기가 정책·브라우저 프로필·인증서·보안 기능을 변경하지 않습니다.
+브라우저가 파일 선택을 거절하면 기존 연결/계정을 유지하고 중지하며, 다른 브라우저나 개인 저장소로 자동 전환하지 않습니다.
+명시적으로 로컬 저장소를 선택하면 팀 파일 API 없이 개인 목록을 사용할 수 있습니다.
+
+검증 범위
+Prisma 설치 안내의 주소 복사와 정책 차단/거절/재시도 UI는 격리 Chromium에서 검사합니다.
+이 시험은 Prisma 실행 파일이나 실제 조직 정책에서의 인증 완료를 의미하지 않습니다.
+실제 사용자 PC의 Prisma 설치·관리자 허용 목록·OCI 로그인·파일/DLP·시크릿 정책은 별도 확인이 필요합니다.
+이번1.3.4는 저장 암호화/금고 잠금 기능을 추가하지 않습니다. 기존 데이터 처리 방식은 PRIVACY.txt와 같습니다.
+
+공식 근거 (2026-11-23 확인)
+확장 관리 주소:
+https://docs.paloaltonetworks.com/prisma-browser/deployment/troubleshoot-the-prisma-browser
+개발자 모드 / 압축해제 등록:
+https://docs.paloaltonetworks.com/prisma-browser/administration/manage-prisma-browser-policy-profiles/configure-prisma-browser-browser-security/configure-browser-hardening/developer-tools
+확장 허용 목록:
+https://pan.dev/prisma-browser/guide/security-rules/
+File System API:
+https://docs.paloaltonetworks.com/prisma-browser/administration/manage-prisma-browser-policy-profiles/configure-prisma-browser-browser-security/configure-protected-browsing/file-system-api
+Incognito:
+https://docs.paloaltonetworks.com/prisma-browser/administration/manage-prisma-browser-policy-profiles/configure-prisma-browser-browser-customization/configure-customization/incogniito
