@@ -1,4 +1,4 @@
-OCI Companion1.3.4 — Palo Alto Networks Prisma Browser 데스크톱
+OCI Companion1.3.5 — Palo Alto Networks Prisma Browser 데스크톱
 
 설치
 1. Install.cmd를 실행합니다. Chrome·Brave와 같은 확장 파일과 경로를 사용합니다.
@@ -29,7 +29,7 @@ Prisma의 팀 공유 파일 → 기존 파일 선택에서 같은 OneDrive JSON�
 Prisma 설치 안내의 주소 복사와 정책 차단/거절/재시도 UI는 격리 Chromium에서 검사합니다.
 이 시험은 Prisma 실행 파일이나 실제 조직 정책에서의 인증 완료를 의미하지 않습니다.
 실제 사용자 PC의 Prisma 설치·관리자 허용 목록·OCI 로그인·파일/DLP·시크릿 정책은 별도 확인이 필요합니다.
-이번1.3.4는 저장 암호화/금고 잠금 기능을 추가하지 않습니다. 기존 데이터 처리 방식은 PRIVACY.txt와 같습니다.
+이번1.3.5는 저장 암호화/금고 잠금 기능을 추가하지 않습니다. 기존 데이터 처리 방식은 PRIVACY.txt와 같습니다.
 
 공식 근거 (2026-11-23 확인)
 확장 관리 주소:

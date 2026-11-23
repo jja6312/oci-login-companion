@@ -8,7 +8,7 @@ import {icon} from './lib/icons.js';
 import {parseBulkColumns,appendBulkProfiles,columnRows} from './lib/bulk.js';
 const $=id=>document.getElementById(id);
 for(const el of document.querySelectorAll('[data-icon]'))el.replaceChildren(icon(el.dataset.icon));
-let sourceSnapshot=null,editBase=null,deleteBase=null,pendingBase=null,draftHandle=null,savingAccount=false,loadVersion=0,sourceReading=0;
+let sourceSnapshot=null,editBase=null,deleteBase=null,pendingBase=null,draftHandle=null,savingAccount=false,storageApplying=false,loadVersion=0,sourceReading=0;
 let profiles=[],filtered=[],selectedId=null,sourceSettings,sourceLabel='',editing=null,pending=null,launching=false,job=null;
 let appearance=normalizeAppearance(),revealed=new Set(),toastTimer,messageTimer;
 let sourceError=null,accessEntry=null,accessBusy=false,automaticAccessTried=false,filePickerBlocked=false;
@@ -109,7 +109,12 @@ $('search').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(!e.repeat)la
 $('login').onclick=()=>launch('login');$('fill').onclick=()=>{$('more-menu').hidden=true;launch('fill');};
 $('diagnostics').onclick=guard(async()=>{const p=selected();if(!p)return;const r=await chrome.runtime.sendMessage({type:'DIAGNOSTICS',profileId:p.id,...await windowScope()});if(!r?.ok)throw new Error('진단 정보를 읽지 못했습니다. 확장을 다시 열어 주세요.');await navigator.clipboard.writeText(JSON.stringify(r.report,null,2));$('more-menu').hidden=true;toast('진단 정보를 복사했습니다');});
 $('cancel').onclick=guard(async()=>{if(job){await chrome.runtime.sendMessage({type:'CANCEL',tabId:job.tabId});await updateStatus();}});
-$('restore-team').onclick=guard(async()=>{const entry=accessEntry;automaticAccessTried=true;const allowed=await restoreTeamAccess('readwrite',entry);await load();if(!allowed&&sourceError?.code==='TEAM_PERMISSION')$('team-access-note').textContent='브라우저 승인 창에서 접근을 허용해 주세요. 파일 연결은 그대로 유지됩니다.';else $('team-access-note').textContent='승인 창에서 “방문할 때마다 허용”을 선택하면 다음에도 자동으로 열립니다.';});
+function focusAfterSourceChange(){
+ if(document.querySelector('dialog[open]'))return;
+ if(sourceSnapshot&&!sourceError)$('search').focus({preventScroll:true});
+ else if(sourceError?.code==='TEAM_PERMISSION')$('restore-team').focus({preventScroll:true});
+}
+$('restore-team').onclick=guard(async()=>{const entry=accessEntry;automaticAccessTried=true;const allowed=await restoreTeamAccess('readwrite',entry);await load();if(!allowed&&sourceError?.code==='TEAM_PERMISSION')$('team-access-note').textContent='브라우저 승인 창에서 접근을 허용해 주세요. 파일 연결은 그대로 유지됩니다.';else $('team-access-note').textContent='승인 창에서 “방문할 때마다 허용”을 선택하면 다음에도 자동으로 열립니다.';if(sourceSettings?.mode==='file')focusAfterSourceChange();});
 $('choose-team').onclick=guard(()=>openSettings('storage'));
 $('refresh').onclick=guard(load);
 $('more').onclick=()=>{const open=$('more-menu').hidden;$('more-menu').hidden=!open;$('more').setAttribute('aria-expanded',String(open));};
@@ -170,14 +175,31 @@ function fileAccessView(){
  $('file-access-help').hidden=open&&save&&!filePickerBlocked;$('pick-file').disabled=!open;$('create-team').disabled=!save;
 }
 async function syncStorage(){sourceSettings=await settingsGet();document.querySelector(`[name=mode][value="${sourceSettings.mode==='file'?'file':'local'}"]`).checked=true;draftHandle=sourceSettings.fileKind==='native'?null:await handleGet();$('file-name').textContent=draftHandle?.name||'연결한 파일 없음';fileView();fileAccessView();}
-function fileView(){$('file-settings').hidden=document.querySelector('[name=mode]:checked')?.value!=='file';}
+function fileView(){const file=document.querySelector('[name=mode]:checked')?.value==='file';$('file-settings').hidden=!file;$('apply-storage').textContent=storageApplying?'적용 중…':file?'파일 접근 허용 및 저장 위치 적용':'저장 위치 적용';}
 for(const r of document.querySelectorAll('[name=mode]'))r.onchange=fileView;
-$('pick-file').onclick=guard(async()=>{if(typeof window.showOpenFilePicker!=='function'){fileAccessView();throw new Error('아래 안내에 따라 브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const [h]=await teamPicker('open');const f=await h.getFile();if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');parseConfig(await f.text());await requestFileAccess(h,'readwrite');draftHandle=h;$('file-name').textContent=h.name;fileAccessView();settingsMessage('파일을 선택했습니다. 저장 위치 적용을 눌러 주세요.');},true);
-$('create-team').onclick=guard(async()=>{if(typeof window.showSaveFilePicker!=='function'){fileAccessView();throw new Error('브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const h=await teamPicker('save');await createTeamFile(h);draftHandle=h;$('file-name').textContent=h.name;fileAccessView();settingsMessage('빈 팀 파일을 만들었습니다. 저장 위치 적용 후 계정을 추가하거나 가져오세요.');},true);
-$('regrant').onclick=guard(async()=>{const h=draftHandle;if(!h)throw new Error('먼저 파일을 선택해 주세요.');if(!await requestFileAccess(h,'readwrite'))throw new Error('브라우저에서 파일 접근을 허용해 주세요.');await load();settingsMessage('접근을 복구했습니다. 승인 창에서 방문할 때마다 허용을 선택하면 다음에도 유지됩니다.');},true);
+$('pick-file').onclick=guard(async()=>{if(typeof window.showOpenFilePicker!=='function'){fileAccessView();throw new Error('아래 안내에 따라 브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const [h]=await teamPicker('open');const f=await h.getFile();if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');parseConfig(await f.text());draftHandle=h;$('file-name').textContent=h.name;fileAccessView();settingsMessage('파일을 선택했습니다. 파일 접근 허용 및 저장 위치 적용을 눌러 주세요.');},true);
+$('create-team').onclick=guard(async()=>{if(typeof window.showSaveFilePicker!=='function'){fileAccessView();throw new Error('브라우저 파일 접근을 켠 뒤 다시 시작해 주세요.');}const h=await teamPicker('save');await createTeamFile(h);draftHandle=h;$('file-name').textContent=h.name;fileAccessView();settingsMessage('빈 팀 파일을 만들었습니다. 파일 접근 허용 및 저장 위치 적용을 눌러 주세요.');},true);
+
 $('open-file-access').onclick=guard(async()=>{await chrome.tabs.create({url:'chrome://flags/#file-system-access-api'});},true);
 $('copy-file-access').onclick=guard(async()=>{await navigator.clipboard.writeText('brave://flags/#file-system-access-api');settingsMessage('설정 주소를 복사했습니다. 주소창에 붙여 넣어 주세요.');},true);
-$('storage-form').onsubmit=guard(async e=>{e.preventDefault();const next={mode:document.querySelector('[name=mode]:checked').value,fileKind:'picker'};if(next.mode==='file'){if(!draftHandle)throw new Error('팀 JSON 파일을 먼저 선택해 주세요.');const f=await draftHandle.getFile();if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');parseConfig(await f.text());await handleSet(draftHandle);}await chrome.storage.local.set({settings:next});selectedId=null;await load();settingsMessage('저장 위치를 적용했습니다.');$('source-result').textContent='';},true);
+$('storage-form').onsubmit=guard(async e=>{
+ e.preventDefault();if(storageApplying)return;
+ const next={mode:document.querySelector('[name=mode]:checked').value,fileKind:'picker'},handle=draftHandle;
+ storageApplying=true;for(const control of $('storage-form').querySelectorAll('button,input'))control.disabled=true;fileView();
+ try{
+  if(next.mode==='file'){
+   if(!handle)throw new Error('팀 JSON 파일을 먼저 선택해 주세요.');
+   if(!await requestFileAccess(handle,'readwrite'))throw new Error('파일 접근을 허용하지 않아 저장 위치를 적용하지 않았습니다.');
+   if(!$('settings-dialog').open||draftHandle!==handle)throw new Error('저장 위치를 다시 확인해 주세요.');
+   const f=await handle.getFile();if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');parseConfig(await f.text());
+   if(!$('settings-dialog').open||draftHandle!==handle)throw new Error('저장 위치를 다시 확인해 주세요.');
+   await handleSet(handle);
+  }
+  await chrome.storage.local.set({settings:next});selectedId=null;await load();$('source-result').textContent='';
+  if(sourceError){settingsMessage(sourceError.message,true);return;}
+  $('settings-dialog').close();focusAfterSourceChange();toast('저장 위치를 적용했습니다');
+ }finally{storageApplying=false;for(const control of $('storage-form').querySelectorAll('button,input'))control.disabled=false;fileView();fileAccessView();}
+},true);
 $('check-source').onclick=guard(async()=>{const r=await readSource();$('source-result').textContent=`${r.profiles.length}개 계정 · ${new Date(r.readAt).toLocaleTimeString('ko-KR')} 읽음 · ${r.label}`;},true);
 async function prepareImport(){pendingBase=null;$('import-confirm').disabled=true;$('import-recheck').disabled=!pending;if(!pending)return;let base=await readList($('import-target').value);if(!base.writable&&base.target==='file'){if(await restoreTeamAccess('readwrite',await handleEntryGet()))base=await readList('file');}if(!base.writable)throw new Error('브라우저에서 팀 파일 쓰기를 허용해 주세요.');pendingBase=base;$('import-preview').textContent=`${pending.length}개 계정 → ${base.target==='file'?'팀 파일':'개인 저장소'} (현재 ${base.profiles.length}개)`;$('import-confirm').disabled=false;}
 $('import-file').onchange=guard(async()=>{pending=null;pendingBase=null;$('import-confirm').disabled=true;$('import-recheck').disabled=true;const f=$('import-file').files[0];if(!f)return;if(f.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');pending=parseConfig(await f.text()).profiles;await prepareImport();},true);

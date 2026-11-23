@@ -1,0 +1,155 @@
+{
+  "version": "1.3.5",
+  "installerRevision": 14,
+  "freshAppChecksPassed": 133,
+  "model": {
+    "passed": 46,
+    "failed": 0
+  },
+  "reports": {
+    "browser": {
+      "count": 31,
+      "checks": [
+        "completed local setup has only add-account action and its shortcut",
+        "four-field editor saves leading-zero bypass code without website URL",
+        "bypass reveal is explicit and masked on reload",
+        "user-triggered copy shows confirmation",
+        "custom color and light mode persist independently of credentials",
+        "explicit export includes selected source",
+        "import conflict preserves account",
+        "explicit import update succeeds",
+        "tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console",
+        "verified identity metadata is learned without storing a website field",
+        "same reusable admin bypass code succeeds on second login",
+        "custom domain picker, Korean alternate label and styled bypass radio complete",
+        "automatic scripts registered only for exact granted origins",
+        "SMS challenge with bypass link never receives static code",
+        "duplicate screen stops before secret entry",
+        "invalid screen stops before secret entry",
+        "unverified navigation to another identity receives no credentials",
+        "changed target metadata aborts login",
+        "fill-only populates credentials without submitting",
+        "content script cannot read local vault storage",
+        "expired job secrets are removed",
+        "connected team source is editable by default without an application checkbox",
+        "file handle persists and changed team bytes are reread",
+        "invalid team file never falls back to personal credentials",
+        "tenancy search selects matching accounts and handles no results",
+        "account editing updates the selected tenancy",
+        "explicit account deletion removes only selected account",
+        "vault fits desktop, tablet and 390px without horizontal overflow",
+        "appearance is shared between popup and options",
+        "actual 780x580 popup fits approved two-column layout",
+        "extension UI has no JavaScript or CSP console errors"
+      ],
+      "network": "OCI hostnames mapped to loopback-only TLS fixture; no real Oracle traffic",
+      "scope": "Linux Chromium; fixture permissions pregranted; OPFS file handles; real OCI, Windows native launch and Chrome permission dialog unverified"
+    },
+    "brave-files": {
+      "count": 31,
+      "checks": [
+        "official Brave default has no picker API and shows actionable setup without helper/path controls",
+        "missing-API setup fits actual popup width and390px without horizontal overflow",
+        "setup button opens the real Brave flag and its Enabled option is selectable",
+        "after one real Brave flag change and restart, picker APIs exist and setup message disappears without feature CLI flags",
+        "two independent browser profiles read one team file while retaining separate personal lists",
+        "team account editing writes the connected file once and preserves exact code and personal data",
+        "another profile rereads the updated password on focus and on reopening the extension",
+        "worker login startup reads the new team password rather than a UI snapshot or personal credential",
+        "stale editor cannot overwrite a teammate change and retains its unsaved fields",
+        "personal export can be selected while team mode is active and excludes team credentials",
+        "team export rereads the connected file and round-trips the exact password and leading-zero bypass",
+        "personal import preserves the connected team file and existing personal accounts",
+        "team import requires explicit same-ID update permission and writes into the shared file",
+        "another profile uses an imported team password on its next login start without importing a local copy",
+        "team import detects changes after preview and retries only after an explicit latest-list review",
+        "team bulk registration appends to the shared file without adding team accounts to personal storage",
+        "staged bulk registration cannot follow a switched source into a personal or different team list",
+        "team deletion names its shared scope and removes only the selected file account",
+        "actual browser write-permission denial blocks bulk writes while allowing the UI to request permission on edit",
+        "invalid team bytes block login and clear the list while retaining unrelated personal accounts",
+        "legacy teamWritable=false no longer restricts editing of a browser-writable picker file",
+        "picker-connected team file saves through a real file handle with exact code and fresh readback",
+        "picker writer rejects a stale revision and preserves externally changed file bytes",
+        "reconnecting an identical-content file still rejects an edit bound to the previous team file",
+        "choosing another file does not change the live connection until Apply is pressed",
+        "new team file starts empty and existing files are preserved by the create action",
+        "new team file UI creates, connects and adds its first account directly into the file",
+        "team export works from personal mode without switching the active list",
+        "personal/team transfer and file settings fit desktop, actual popup width and390px with scrollable dialogs",
+        "legacy path mode requires reselecting the same JSON and cannot silently use an old picker handle or personal list",
+        "new sharing screens have no JavaScript errors"
+      ],
+      "scope": "Official Brave1.100.58 Linux arm64 with SHA-verified release; two disposable profiles use real external FileSystemFileHandles on the same fictional JSON. Real Brave flags UI Enabled/restart tested. Native chooser result is supplied by a drag-derived real handle and file read/write consent pregranted only in disposable profiles; filesystem methods are real. OPFS tests cover create/cancel/conflicts. OCI navigation suppressed/external page requests blocked. Actual Windows chooser/consent, user Brave version, OneDrive cloud transport and customer authentication unverified."
+    },
+    "permission": {
+      "count": 15,
+      "checks": [
+        "a real selected external handle reads without blanket browser file grants",
+        "closing the last extension page revokes the one-time grant; reopen shows the saved filename and inline recovery rather than zero accounts or a settings error",
+        "permission recovery receives keyboard focus so Enter restores from the same screen",
+        "focus and periodic refresh never repeatedly prompt for permissions",
+        "denial preserves the selected file, settings and personal list without silently importing cached team data",
+        "inline recovery fits popup and390px with an actionable button",
+        "one click requests read/write access directly during user activation and prevents duplicate requests",
+        "permission recovery rereads current file bytes immediately using the same binding without file selection or settings Apply",
+        "Enter to open the team file focuses tenancy search and accepts typing without another click",
+        "a per-file/per-origin Always permission record automatically restores access after browser restart; no global guards are enabled",
+        "persistent permission survives closing/reopening the popup and reads updated shared-file bytes",
+        "another full browser restart retains access and unrelated personal credentials",
+        "a team editor requests missing write access naturally on Edit and never writes after denial",
+        "a missing file is distinguished from a temporarily expired permission",
+        "permission and recovery paths have no JavaScript errors"
+      ],
+      "scope": "Official Brave1.100.58 Linux arm64; real external handle and real one-time revocation after all extension pages close, real file reads and browser restarts. Native approval result controlled only in disposable fixtures; persistent case seeds selected origin/file records to model the user Always choice, not global read/write grants. Production code never edits browser preferences or auto-accepts consent. Actual Windows native permission UI, user Brave build, OneDrive cloud and OCI login unverified."
+    },
+    "storage-apply": {
+      "count": 10,
+      "checks": [
+        "storage has one combined file action and no separate regrant button; local mode keeps its apply label",
+        "choosing a file prepares a draft without requesting write access or changing the active source",
+        "denial requests read/write during the click gesture and preserves settings, binding and personal credentials",
+        "one approval applies the chosen file once, closes settings and focuses search without starting login",
+        "the approved file is validated again before applying and invalid bytes preserve the previous binding",
+        "closing settings while native permission is pending cancels the unapplied draft",
+        "closing settings during asynchronous validation also leaves the previous source intact",
+        "local apply needs no file permission and preserves both the personal list and saved team handle",
+        "a saved team file is reopened and applied through the same one-click action without picking it again",
+        "the combined action fits the real popup and390px options without horizontal overflow or JavaScript errors"
+      ],
+      "scope": "Disposable Linux Chromium; actual extension storage/IndexedDB/OPFS and keyboard focus. Native permission return values and chooser results controlled in fixture; actual Windows consent UI, OneDrive cloud and Prisma policies not exercised."
+    }
+  },
+  "profileAndGuide": {
+    "installer_execution": "Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI",
+    "existing_setup_skipped_and_team_editable_by_default": true,
+    "same_extension_id": true,
+    "accounts_theme_source_and_opfs_handle_preserved": true,
+    "prisma_guide_manager_copy_and_policy_notice": true,
+    "guide_copy_handlers_new_update_modes_and_three_viewports": true,
+    "guide_native_clipboard_changed": false
+  },
+  "behavior": [
+    "Main team-file open via Enter focuses tenancy search after a successful current-file read",
+    "Permission denial retains the saved connection and returns focus to the recovery action",
+    "Settings use one permission-and-apply action; selecting a draft does not request write access",
+    "The submit gesture requests read/write before asynchronous validation; duplicate submits are ignored",
+    "Successful apply closes settings and focuses search without launching login",
+    "Denied permission, invalid JSON and a settings dialog closed during permission/validation retain the previous source",
+    "Local apply requests no file permission; periodic refresh never changes focus"
+  ],
+  "unchanged": [
+    "OCI engine/worker/host permissions/schema",
+    "existing accounts/theme/team data and same-path installation",
+    "Prisma installation/admin guidance and its live-runtime verification limits"
+  ],
+  "limitations": [
+    "Linux Chromium and official Brave fixtures only; actual Windows native consent and user OneDrive cloud transfer not exercised",
+    "Native chooser/permission return values are controlled in disposable tests; file handles, storage/IDB/OPFS, actual one-time revocation, readback and focus are tested",
+    "Actual Prisma executable and organization policies remain unverified",
+    "First-run22/Prisma-policy8/features17/team-worker3 remain previous baselines and are not included in fresh133",
+    "Existing plaintext storage remains; encrypted vault/startup unlock has not been implemented"
+  ],
+  "uiLint": "0FAIL; two preexisting hex padStart warnings",
+  "windowsInstaller": "Release publication is gated on the matching source commit Windows CI: model46 and actual CMD/PowerShell installation16"
+}

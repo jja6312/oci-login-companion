@@ -1,4 +1,4 @@
-OCI Companion 1.3.4
+OCI Companion 1.3.5
 
 처음 실행
 로컬 저장소 / 팀 공유 파일 중 하나를 선택합니다.
