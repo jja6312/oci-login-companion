@@ -33,6 +33,10 @@ def mfa_fixture(scenario):
  return html(body,script)
 async def main():
  ext=WORK/'extension-fixture';shutil.rmtree(ext,ignore_errors=True);shutil.copytree(ROOT/'extension',ext)
+ if '--session-only' in sys.argv:
+  # Model Chrome leaving executeScript pending without altering production
+  # timeouts or timer APIs. The shipped worker must release its per-tab queue.
+  worker_path=ext/'worker.js';worker_path.write_text(worker_path.read_text()+"\nconst fixtureExecute=chrome.scripting.executeScript.bind(chrome.scripting),fixtureRegister=chrome.scripting.registerContentScripts.bind(chrome.scripting);chrome.scripting.executeScript=async(args)=>{const frame=await chrome.webNavigation.getFrame({tabId:args.target.tabId,frameId:0}).catch(()=>null);if(globalThis.fixtureHoldSessionInjection&&frame?.url.includes('/v2/ui/sessionPicker'))return new Promise(()=>{});return fixtureExecute(args);};chrome.scripting.registerContentScripts=scripts=>fixtureRegister(scripts.map(s=>({...s,matches:s.matches.filter(x=>!globalThis.fixtureNoBrokerDriver||x!=='https://login.oci.oraclecloud.com/*')})));\n")
  m=json.loads((ext/'manifest.json').read_text());m['host_permissions']=['https://www.oracle.com/*','https://login.oci.oraclecloud.com/*','https://cloud.oracle.com/*','https://*.identity.oraclecloud.com/*','https://login.oraclecloud.com/*','https://signin.oraclecloud.com/*',REGIONAL+'/*',REGIONAL_OCI+'/*'];(ext/'manifest.json').write_text(json.dumps(m))
  profdir=WORK/'browser-profile';shutil.rmtree(profdir,ignore_errors=True)
  shots=WORK/'screenshots';shots.mkdir(exist_ok=True);errors=[];scenario='session-match' if '--session-only' in sys.argv else 'normal';requests=[]
@@ -80,7 +84,8 @@ async def main():
       target=IDENTITY+'/credentials' if key=='target' and scenario=='session-expired' else CONSOLE+'/done?fixture='+key
       cards.append('<button class="oui-button-outline oui-button henosis-button session-button" data-testid="btn-session-'+str(i)+'" onclick="location.href=\''+target+'\'"><div class="session-icon">O</div><div class="session-body"><div class="user-name">'+escape_html.escape(user)+'</div><div class="domain-name key-value"><div class="key">도메인:</div><div class="value">'+domain+'</div></div><div class="tenant-name key-value"><div class="key">테넌트:</div><div class="value">'+tenant+'</div></div></div></button>')
      different='' if scenario=='session-no-control' else '<button onclick="location.href=\''+BROKER+'/v2/ui/changeTenant\'"><div class="session-change">Sign in with a different user account</div></button>'
-     body=html('<h3>You have active sessions</h3><div id="session-picker-dialog"><div class="login-input session-list">'+''.join(cards)+'</div>'+different+'</div>')
+     root='unrecognized-session-layout' if scenario in ['session-recovery-layout','session-recovery-idle'] else 'session-picker-dialog'
+     body=html('<h3>You have active sessions</h3><div id="'+root+'"><div class="login-input session-list">'+''.join(cards)+'</div>'+different+'</div>')
    elif url==BROKER+'/v2/ui/changeTenant':body=form('<input id="tenant" name="tenant">',BROKER+'/v2/ui/domains',"tenant.value==='cloudragon-prod'",'Continue')
    elif url==BROKER+'/v2/ui/domains':body=form('<select name="domainSelect" data-testid="identity-domain-dropdown"><option value="other">Other</option><option value="default-ocid">Default</option></select>',BROKER+'/v2/ui/native' if scenario=='session-native' else IDENTITY+'/credentials',"document.querySelector('select').value==='default-ocid'",'Continue')
    elif url==BROKER+'/v2/ui/native':body=form('<input id="username"><input id="password" type="password">',BROKER+'/v2/ui/native-bypass',"username.value==='operator@example.invalid'&&password.value==='fixture-password'")
@@ -135,6 +140,7 @@ async def main():
   await page.goto(f'chrome-extension://{eid}/options.html');await page.locator('#add').wait_for();await page.wait_for_timeout(300)
   if '--session-only' in sys.argv:
    await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)
+   await worker.evaluate("()=>{globalThis.fixtureObservedKinds=new Set();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='session')for(const [key,v] of Object.entries(changes))if(key.startsWith('job:'))for(const event of v.newValue?.trace||[])fixtureObservedKinds.add(event.kind);});}")
    async def session_start():
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
@@ -152,6 +158,33 @@ async def main():
     elif scenario in ['session-none','session-entry','session-native','session-expired']:assert st['step']=='complete' and any(u in [IDENTITY+'/bypass',BROKER+'/v2/ui/native-bypass'] for u in recent),st;ok(scenario+' continues through actual broker tenancy/domain, credentials, bypass and console')
     else:assert st['step']=='stopped' and not any('fixture=' in u or u==BROKER+'/v2/ui/changeTenant' for u in recent),st;ok(scenario+' stops without choosing a different account')
     assert not await page.evaluate('(id)=>chrome.storage.session.get("job:"+id)',tid)
+   for scenario in ['session-recovery-layout','session-recovery-pending-injection','session-recovery-no-driver']:
+    await worker.evaluate('fixtureObservedKinds.clear()')
+    await worker.evaluate('(v)=>{globalThis.fixtureHoldSessionInjection=v.hold;globalThis.fixtureNoBrokerDriver=v.noDriver;}',{'hold':not scenario.endswith('layout'),'noDriver':scenario.endswith('no-driver')})
+    begin=len(requests);tid=await session_start();st=await session_end(tid);recent=requests[begin:]
+    assert st['step']=='complete' and BROKER+'/v2/ui/changeTenant' in recent and IDENTITY+'/bypass' in recent,st
+    assert not any('fixture=' in u for u in recent),recent
+    kinds=await worker.evaluate('[...fixtureObservedKinds]')
+    assert ('content-ready' if scenario.endswith('pending-injection') else 'session-recovery') in kinds,(st,kinds)
+    assert not await worker.evaluate('(id)=>chrome.alarms.get("recover-session:"+id)',tid)
+    ok(scenario+' automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass')
+   await worker.evaluate('globalThis.fixtureHoldSessionInjection=false;globalThis.fixtureNoBrokerDriver=false')
+   # A queued alarm must not take over manual navigation or a cancelled task.
+   for manual in [False,True]:
+    scenario='session-recovery-idle';tid=await session_start()
+    for _ in range(80):
+     alarm=await worker.evaluate('(id)=>chrome.alarms.get("recover-session:"+id)',tid)
+     if alarm:break
+     await page.wait_for_timeout(50)
+    else:raise AssertionError('Missing recovery alarm')
+    if manual:
+     await page.evaluate('(id)=>chrome.tabs.update(id,{url:"https://idcs-untrusted.identity.oraclecloud.com/credentials"})',tid)
+     await session_end(tid)
+    else:await page.evaluate('(id)=>chrome.runtime.sendMessage({type:"CANCEL",tabId:id})',tid)
+    begin=len(requests);await page.wait_for_timeout(5600)
+    assert BROKER+'/v2/ui/changeTenant' not in requests[begin:]
+    assert not await worker.evaluate('(id)=>chrome.alarms.get("recover-session:"+id)',tid)
+    ok('session recovery respects '+('manual navigation away from the tracked document' if manual else 'cancellation before the alarm'))
    scenario='session-guard';tid=await session_start()
    for _ in range(100):
     tabs=await page.evaluate('(id)=>chrome.tabs.get(id)',tid)
@@ -225,6 +258,15 @@ async def main():
     await page.wait_for_timeout(120)
    assert st['step']=='complete',{'status':st,'requests':requests[-12:]}
    target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';ok('real Chromium private window completes fixture tenancy/password/bypass login in exact initiating window despite normal focus')
+   scenario='session-recovery-layout'
+   r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;recovered=r['tabId']
+   for _ in range(260):
+    recovery=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',recovered)
+    if recovery and not recovery['running']:break
+    await page.wait_for_timeout(120)
+   target=await page.evaluate('(id)=>chrome.tabs.get(id)',recovered)
+   assert recovery['step']=='complete' and target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done',recovery
+   scenario='normal';ok('stalled session recovery completes tenancy/password/bypass in the same initiating private window')
    cookie=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:()=>{const before=document.cookie;document.cookie='fixture-private-only=private; path=/; secure';return before;}}))[0].result''',tid);assert 'fixture-normal-only' not in cookie;assert 'fixture-private-only' not in await normal.evaluate('document.cookie');ok('normal and private OCI cookie jars stay separate during automatic login')
    assert await page.evaluate('chrome.storage.local.get(["identityBindings","lastUsed"])')==before_meta;ok('private login reads shared vault/team handle but does not persist learned identity or last-used browsing metadata')
    visible=await page.evaluate('(s)=>chrome.runtime.sendMessage({type:"STATUS",...s})',normal_scope);hidden=await page.evaluate('(s)=>chrome.runtime.sendMessage({type:"STATUS",...s})',scope);assert not any(x['tabId']==tid for x in visible['items']) and any(x['tabId']==tid for x in hidden['items']);ok('private job status is excluded from normal-window UI')

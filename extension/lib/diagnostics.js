@@ -1,6 +1,6 @@
 import {routingKind} from './model.js';
 const stages=['sessionPick','newLogin','changeTenancy','tenancy','domainOpen','domainPick','domain','credentials','username','alternative','bypassChoice','bypass'];
-const kinds=['start','navigate','identity-ready','claim','applied','injected','injection-stale','injection-retry','error','stopped','complete'];
+const kinds=['start','navigate','identity-ready','claim','applied','injection-start','injected','injection-stale','injection-retry','content-ready','session-recovery','error','stopped','complete'];
 const hosts=['console','account-entry','broker','regional-broker','identity','other'];
 const transitions=['link','typed','auto_bookmark','auto_subframe','manual_subframe','generated','start_page','form_submit','reload','keyword','keyword_generated'];
 const qualifiers=['client_redirect','server_redirect','forward_back','from_address_bar'];

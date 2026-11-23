@@ -7,6 +7,16 @@ export const ENTRY_ORIGIN='https://www.oracle.com';
 export const ENTRY_PATH='/cloud/sign-in.html';
 export const ENTRY_PATTERN=ENTRY_ORIGIN+ENTRY_PATH+'*';
 export const BROKER_ORIGIN = 'https://login.oci.oraclecloud.com';
+// A stalled session picker can always return to Oracle's own account-entry
+// route. Keep the original OAuth request intact and never infer a tenancy here.
+export function sessionRecoveryURL(job,frame) {
+  if(!job||job.mode!=='login'||job.activeOrigin!==BROKER_ORIGIN||job.sessionRecoveryAttempted||!job.documentId||frame?.documentId!==job.documentId||frame.errorOccurred||Object.keys(job.claims||{}).length||Object.keys(job.applied||{}).length)return null;
+  try {
+    const u=new URL(frame.url);
+    if(u.origin!==BROKER_ORIGIN||u.pathname!=='/v2/ui/sessionPicker'||u.username||u.password||u.port)return null;
+    u.pathname='/v2/ui/changeTenant';u.hash='';return u.href;
+  }catch{return null;}
+}
 export const AUTO_AUTH_PATTERNS = [ENTRY_PATTERN,'https://cloud.oracle.com/*','https://login.oci.oraclecloud.com/*','https://*.identity.oraclecloud.com/*','https://login.oraclecloud.com/*','https://signin.oraclecloud.com/*'];
 function str(value, label, limit=1000, required=false) {
   if (typeof value !== 'string' || value.length > limit || (required && !value.trim()) || /\u0000/.test(value)) throw new Error(`${label} 값을 확인해 주세요.`);

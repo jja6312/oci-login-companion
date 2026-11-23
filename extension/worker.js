@@ -1,10 +1,29 @@
-import {normalizeProfile,patternsFor,CONSOLE_ORIGIN,bindingKey,canLearnIdentity,isAutoIdentityOrigin,isBrokerOrigin,routingKind,isOAuthBridge,BROKER_ORIGIN,canEnterBroker,ENTRY_ORIGIN,ENTRY_PATH,ENTRY_PATTERN,canEnterEntry} from './lib/model.js';
+import {normalizeProfile,patternsFor,CONSOLE_ORIGIN,bindingKey,canLearnIdentity,isAutoIdentityOrigin,isBrokerOrigin,routingKind,isOAuthBridge,BROKER_ORIGIN,canEnterBroker,ENTRY_ORIGIN,ENTRY_PATH,ENTRY_PATTERN,canEnterEntry,sessionRecoveryURL} from './lib/model.js';
 import {readSource,writeList,sourceRef} from './lib/sources.js';
 import {appendBulkProfiles} from './lib/bulk.js';
 import {validateLaunchWindow} from './lib/windows.js';
 import {trace,snapshot,diagnosticReport} from './lib/diagnostics.js';
 const ready=Promise.all([chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'}),chrome.storage.session.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'})]);
 const queues=new Map(),ttl=180000;
+const sessionWait=5000,injectionWait=3000,pendingInjections=new Map();
+async function executeWithDeadline(args){let timer;try{return await Promise.race([chrome.scripting.executeScript(args),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('injection timeout')),injectionWait);})]);}finally{clearTimeout(timer);}}
+async function armSessionRecovery(id,j,url){if(sessionRecoveryURL(j,{url,documentId:j.documentId}))await chrome.alarms.create(`recover-session:${id}`,{when:Date.now()+sessionWait});}
+async function recoverSession(id){
+  const j=await getJob(id);if(!j)return;
+  const tab=await chrome.tabs.get(id).catch(()=>null);
+  if(!tab||tab.windowId!==j.windowId||!!tab.incognito!==!!j.incognito)return;
+  const frame=await chrome.webNavigation.getFrame({tabId:id,frameId:0}).catch(()=>null);
+  const url=sessionRecoveryURL(j,frame);if(!url||(tab.pendingUrl&&tab.pendingUrl!==frame.url))return;
+  j.sessionRecoveryAttempted=true;trace(j,'session-recovery');await putJob(id,j);
+  await status(id,'세션 선택이 지연되어 테넌시 로그인으로 이어가는 중입니다.','newLogin');
+  // Recheck after asynchronous storage writes. A stale alarm must never take
+  // over a different document the user opened in the meantime.
+  const currentTab=await chrome.tabs.get(id).catch(()=>null);
+  if(!currentTab||currentTab.windowId!==j.windowId||!!currentTab.incognito!==!!j.incognito||(currentTab.pendingUrl&&currentTab.pendingUrl!==frame.url))return;
+  const current=await chrome.webNavigation.getFrame({tabId:id,frameId:0}).catch(()=>null);
+  if(current?.documentId!==frame.documentId||current?.url!==frame.url)return;
+  await chrome.tabs.update(id,{url});
+}
 class UserError extends Error{}
 const isUI=s=>s.id===chrome.runtime.id&&['popup.html','options.html'].some(p=>s.url?.split(/[?#]/)[0]===chrome.runtime.getURL(p));
 function queue(key,fn){const task=(queues.get(key)||Promise.resolve()).catch(()=>{}).then(async()=>{await ready;return fn();});queues.set(key,task);task.finally(()=>{if(queues.get(key)===task)queues.delete(key);}).catch(()=>{});return task;}
@@ -14,7 +33,7 @@ async function status(id,message,step='waiting',extra={}){const j=(await chrome.
 async function finish(id,message,step='stopped',reason='none'){
   const j=(await chrome.storage.session.get(`job:${id}`))[`job:${id}`];const prior=(await chrome.storage.session.get(`status:${id}`))[`status:${id}`];
   if(j)trace(j,step==='complete'?'complete':'stopped');
-  await chrome.storage.session.remove(`job:${id}`);await chrome.alarms.clear(`expire:${id}`);
+  await chrome.storage.session.remove(`job:${id}`);await chrome.alarms.clear(`expire:${id}`);await chrome.alarms.clear(`recover-session:${id}`);
   await chrome.storage.session.set({[`status:${id}`]:{tabId:id,profileId:j?.profile.id??prior?.profileId,tenancy:j?.profile.tenancy??prior?.tenancy,incognito:j?.incognito??prior?.incognito??false,message,step,at:Date.now(),running:false,reason,debug:j?snapshot(j):prior?.debug}});
   await chrome.action.setBadgeText({tabId:id,text:''}).catch(()=>{});
 }
@@ -26,7 +45,7 @@ async function committed(d){
   trace(j,'navigate',{host:routingKind(origin),transition:d.transitionType,qualifiers:d.transitionQualifiers});await putJob(d.tabId,j);
   if(origin===CONSOLE_ORIGIN){j.activeOrigin=origin;j.documentId=d.documentId;await putJob(d.tabId,j);return;}
   if(origin===ENTRY_ORIGIN){if(!canEnterEntry(j,d)){await finish(d.tabId,'확인되지 않은 Oracle 페이지에서 중지했습니다.');return;}j.activeOrigin=origin;j.documentId=d.documentId;await putJob(d.tabId,j);return;}
-  if(isBrokerOrigin(origin)){if(!canEnterBroker(j,d)){await finish(d.tabId,'확인되지 않은 세션 선택 이동에서 중지했습니다. 다시 로그인해 주세요.','stopped','navigation-rejected');return;}j.activeOrigin=origin;j.documentId=d.documentId;await putJob(d.tabId,j);await status(d.tabId,origin===BROKER_ORIGIN?'OCI 세션 선택 또는 새 로그인 화면을 확인하는 중입니다.':'OCI 인증 서버를 거쳐 이동하는 중입니다.','broker');return;}
+  if(isBrokerOrigin(origin)){if(!canEnterBroker(j,d)){await finish(d.tabId,'확인되지 않은 세션 선택 이동에서 중지했습니다. 다시 로그인해 주세요.','stopped','navigation-rejected');return;}j.activeOrigin=origin;j.documentId=d.documentId;await putJob(d.tabId,j);await status(d.tabId,origin===BROKER_ORIGIN?'OCI 세션 선택 또는 새 로그인 화면을 확인하는 중입니다.':'OCI 인증 서버를 거쳐 이동하는 중입니다.','broker');await armSessionRecovery(d.tabId,j,d.url);return;}
   if(j.profile.identityOrigins.includes(origin)||j.activeIdentity===origin){j.activeIdentity=origin;j.activeOrigin=origin;j.documentId=d.documentId;await putJob(d.tabId,j);return;}
   if(canLearnIdentity(j,d)){j.activeIdentity=origin;j.activeOrigin=origin;j.documentId=d.documentId;j.learned=true;trace(j,'identity-ready');await putJob(d.tabId,j);await status(d.tabId,'OCI 인증 화면을 확인했습니다.','identity');return;}
   await finish(d.tabId,'확인되지 않은 인증 화면에서 중지했습니다. 메뉴의 진단 정보 복사를 사용해 주세요.','stopped',isAutoIdentityOrigin(origin)&&!j.tenancyVerified?'unverified-tenancy':'unsupported-origin');
@@ -41,9 +60,19 @@ async function inject(id,url,documentId){
   // navigation only; inject no code and provide them no credentials or metadata.
   if(origin!==CONSOLE_ORIGIN&&origin!==BROKER_ORIGIN&&origin!==ENTRY_ORIGIN&&origin!==j.activeIdentity)return;
   if(origin===ENTRY_ORIGIN&&new URL(url).pathname!==ENTRY_PATH)return;
-  try{trace(j,'injected');await putJob(id,j);await chrome.scripting.executeScript({target:{tabId:id,...(j.documentId?{documentIds:[j.documentId]}:{})},files:['engine.js','content.js'],injectImmediately:true});}
-  catch{
+  const key=`${id}:${j.documentId}`;if(pendingInjections.has(key))return;
+  trace(j,'injection-start');await putJob(id,j);
+  // Chrome can leave an injection request pending while document-idle scripts
+  // already wait for CONTEXT/APPLIED. Never hold their per-tab message queue.
+  const request=executeWithDeadline({target:{tabId:id,...(j.documentId?{documentIds:[j.documentId]}:{})},files:['engine.js','content.js'],injectImmediately:true});
+  pendingInjections.set(key,request);
+  const settle=failed=>{if(pendingInjections.get(key)===request)pendingInjections.delete(key);return queue(id,async()=>{
     const current=await getJob(id);if(!current||current.expiresAt!==j.expiresAt)return;
+    if(current.documentId!==j.documentId)return;
+    if(!failed){trace(current,'injected');await putJob(id,current);return;}
+    // A valid content handshake proves a working driver is already present;
+    // a redundant injection timing out must not terminate that active driver.
+    if(current.contentDocumentId===j.documentId)return;
     const frame=await chrome.webNavigation.getFrame({tabId:id,frameId:0}).catch(()=>null);
     // A self-submitting OAuth document can disappear while its script request
     // is queued. The next committed document gets its own readiness event.
@@ -54,7 +83,8 @@ async function inject(id,url,documentId){
     if(failures>=3){await finish(id,'OCI 입력 코드를 실행하지 못했습니다. 메뉴의 진단 정보 복사를 사용해 주세요.','stopped','injection-failed');return;}
     current.injectionFailure={documentId:j.documentId,count:failures};trace(current,'injection-retry');await putJob(id,current);
     setTimeout(()=>queue(id,()=>inject(id,frame.url,frame.documentId)).catch(()=>{}),250);
-  }
+  });};
+  request.then(()=>settle(false),()=>settle(true)).catch(()=>{});
 }
 async function start(m){
   let scope;
@@ -127,7 +157,7 @@ async function handle(m,s){
   if(isBrokerOrigin(origin)&&origin!==BROKER_ORIGIN)return {ok:false};
   const broker=origin===BROKER_ORIGIN;
   const identity=(!broker&&origin===j.activeIdentity)||(broker&&j.tenancyVerified&&!!(j.applied.tenancy||j.sessionVerified));
-  if(m.type==='CONTEXT')return {ok:true,context:{tenancy:j.profile.tenancy,identityDomain:j.profile.identityDomain,selectors:j.profile.selectors,identity,broker,username:broker?j.profile.username:undefined,mode:j.mode,expiresAt:j.expiresAt,tenancyVerified:j.tenancyVerified,applied:Object.keys(j.applied)}};
+  if(m.type==='CONTEXT'){if(j.contentDocumentId!==s.documentId){j.contentDocumentId=s.documentId;trace(j,'content-ready');await putJob(id,j);}return {ok:true,context:{tenancy:j.profile.tenancy,identityDomain:j.profile.identityDomain,selectors:j.profile.selectors,identity,broker,username:broker?j.profile.username:undefined,mode:j.mode,expiresAt:j.expiresAt,tenancyVerified:j.tenancyVerified,applied:Object.keys(j.applied)}};}
   if(m.type==='CLAIM'){
     if(!stages.includes(m.stage)||j.claims[m.stage]||(['sessionPick','newLogin'].includes(m.stage)&&!broker)||(['credentials','username','alternative','bypassChoice','bypass'].includes(m.stage)&&!identity))return {ok:false};
     j.claims[m.stage]=true;trace(j,'claim',{stage:m.stage});await putJob(id,j);
@@ -158,8 +188,8 @@ chrome.runtime.onMessage.addListener((m,s,reply)=>{queue(s.tab?.id??'ui',()=>han
 chrome.webNavigation.onCommitted.addListener(d=>queue(d.tabId,()=>committed(d)).catch(()=>{}));
 chrome.webNavigation.onDOMContentLoaded.addListener(d=>{if(d.frameId===0)queue(d.tabId,()=>inject(d.tabId,d.url,d.documentId)).catch(()=>{});});
 chrome.tabs.onUpdated.addListener((id,c,t)=>{if(c.status==='complete')queue(id,()=>inject(id,t.url)).catch(()=>{});});
-chrome.tabs.onRemoved.addListener(id=>queue(id,async()=>{await chrome.storage.session.remove([`job:${id}`,`status:${id}`]);await chrome.alarms.clear(`expire:${id}`);}).catch(()=>{}));
-chrome.alarms.onAlarm.addListener(a=>{if(a.name.startsWith('expire:'))queue(Number(a.name.slice(7)),()=>finish(Number(a.name.slice(7)),'시간이 지났습니다. 다시 로그인해 주세요.')).catch(()=>{});});
+chrome.tabs.onRemoved.addListener(id=>queue(id,async()=>{await chrome.storage.session.remove([`job:${id}`,`status:${id}`]);await chrome.alarms.clear(`expire:${id}`);await chrome.alarms.clear(`recover-session:${id}`);}).catch(()=>{}));
+chrome.alarms.onAlarm.addListener(a=>{if(a.name.startsWith('expire:'))queue(Number(a.name.slice(7)),()=>finish(Number(a.name.slice(7)),'시간이 지났습니다. 다시 로그인해 주세요.')).catch(()=>{});else if(a.name.startsWith('recover-session:'))queue(Number(a.name.slice(16)),()=>recoverSession(Number(a.name.slice(16)))).catch(()=>{});});
 chrome.permissions.onRemoved.addListener(()=>register().catch(()=>{}));
 chrome.runtime.onInstalled.addListener(details=>ready.then(async()=>{if(details.reason==='update')await navigator.locks.request('oci-companion-onboarding',async()=>{const saved=await chrome.storage.local.get('onboarding');if(!Object.hasOwn(saved,'onboarding'))await chrome.storage.local.set({onboarding:{complete:true,version:1}});});await register();}).catch(()=>{}));
 chrome.runtime.onStartup.addListener(()=>ready.then(register).catch(()=>{}));

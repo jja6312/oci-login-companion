@@ -1,0 +1,160 @@
+{
+  "version": "1.3.6",
+  "installerRevision": 15,
+  "date": "2026-11-23",
+  "freshChecks": 128,
+  "modelChecks": 51,
+  "browserReports": {
+    "browser": {
+      "count": 31,
+      "checks": [
+        "completed local setup has only add-account action and its shortcut",
+        "four-field editor saves leading-zero bypass code without website URL",
+        "bypass reveal is explicit and masked on reload",
+        "user-triggered copy shows confirmation",
+        "custom color and light mode persist independently of credentials",
+        "explicit export includes selected source",
+        "import conflict preserves account",
+        "explicit import update succeeds",
+        "tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console",
+        "verified identity metadata is learned without storing a website field",
+        "same reusable admin bypass code succeeds on second login",
+        "custom domain picker, Korean alternate label and styled bypass radio complete",
+        "automatic scripts registered only for exact granted origins",
+        "SMS challenge with bypass link never receives static code",
+        "duplicate screen stops before secret entry",
+        "invalid screen stops before secret entry",
+        "unverified navigation to another identity receives no credentials",
+        "changed target metadata aborts login",
+        "fill-only populates credentials without submitting",
+        "content script cannot read local vault storage",
+        "expired job secrets are removed",
+        "connected team source is editable by default without an application checkbox",
+        "file handle persists and changed team bytes are reread",
+        "invalid team file never falls back to personal credentials",
+        "tenancy search selects matching accounts and handles no results",
+        "account editing updates the selected tenancy",
+        "explicit account deletion removes only selected account",
+        "vault fits desktop, tablet and 390px without horizontal overflow",
+        "appearance is shared between popup and options",
+        "actual 780x580 popup fits approved two-column layout",
+        "extension UI has no JavaScript or CSP console errors"
+      ],
+      "network": "OCI hostnames mapped to loopback-only TLS fixture; no real Oracle traffic",
+      "scope": "Linux Chromium; fixture permissions pregranted; OPFS file handles; real OCI, Windows native launch and Chrome permission dialog unverified"
+    },
+    "session": {
+      "count": 14,
+      "checks": [
+        "real Oracle session-card DOM selects only exact tenancy, case-sensitive username and domain; no new credentials",
+        "session-none continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-entry continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-native continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-expired continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-ambiguous stops without choosing a different account",
+        "session-no-control stops without choosing a different account",
+        "session-recovery-layout automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session-recovery-pending-injection automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session-recovery-no-driver automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session recovery respects cancellation before the alarm",
+        "session recovery respects manual navigation away from the tracked document",
+        "unverified session broker is denied password and bypass claims",
+        "changed session metadata is rechecked before any click"
+      ],
+      "network": "Loopback-only TLS fixtures; Oracle public script used only to identify DOM selectors; zero customer session data in tests",
+      "scope": "Linux Chromium shipped worker/content/engine; actual user logged-in session not controlled"
+    },
+    "injection": {
+      "count": 4,
+      "checks": [
+        "stale injection race recovers without aborting the login job",
+        "transient injection race recovers without aborting the login job",
+        "permission injection failure stops explicitly and does not loop forever",
+        "persistent injection failure stops explicitly and does not loop forever"
+      ],
+      "scope": "Disposable Chromium extension with deterministic API failure hooks; stale document, transient, permission-revoked and persistent same-document cases"
+    },
+    "regional": {
+      "count": 10,
+      "checks": [
+        "regional-forward tracks global→regional→IDCS and completes without binding broker as identity",
+        "regional-oci tracks global→regional→IDCS and completes without binding broker as identity",
+        "regional-unverified still stops with an explicit privacy-safe reason",
+        "regional-other still stops with an explicit privacy-safe reason",
+        "regional broker is navigation-only: no automatic injection, context, password or bypass even after verified tenancy",
+        "regional automatic content scripts stay excluded even with test-only exact origin grants",
+        "regional broker refuses fill-only even if an imported profile explicitly lists it as an identity",
+        "typed identity navigation from a regional broker cannot become a trusted identity",
+        "diagnostics export contains routing categories and reason but no account, hostname or secret",
+        "user-triggered diagnostic copy works from existing account menu"
+      ],
+      "scope": "Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only regional grants used to verify explicit deny and no registration"
+    },
+    "features": {
+      "count": 18,
+      "checks": [
+        "six circular preset colors change and persist from main UI without opening settings",
+        "customer alias is a basic account field outside advanced settings",
+        "mismatched pasted columns block entire registration without saving any account",
+        "empty password cell identifies its row and never shifts the following credentials",
+        "25-row preview preserves order and aliases while masking secrets and omitting them from table",
+        "one confirmation appends all25 accounts atomically and clears pasted credentials afterward",
+        "customer alias search and display persist through reload with legacy name schema",
+        "editing customer alias updates subsequent search without changing authentication target",
+        "duplicate target is rejected and Escape clears the whole unsaved batch",
+        "worker rejects bulk writes when active team source is read-only",
+        "real Chromium private window completes fixture tenancy/password/bypass login in exact initiating window despite normal focus",
+        "stalled session recovery completes tenancy/password/bypass in the same initiating private window",
+        "normal and private OCI cookie jars stay separate during automatic login",
+        "private login reads shared vault/team handle but does not persist learned identity or last-used browsing metadata",
+        "private job status is excluded from normal-window UI",
+        "closed private origin window fails without opening a replacement normal tab",
+        "bulk dialog fits desktop/tablet/mobile and quick palette fits actual780x580 popup",
+        "25 and300 account lists scroll within popup, retain footer, and reach last account by keyboard"
+      ],
+      "network": "Loopback-only TLS fixtures; real disposable Chromium normal/private windows and cookie jars",
+      "scope": "Linux Chromium; incognito toggle enabled on disposable browser settings; API START uses originating window snapshot; actual Windows/Brave shortcut popup remains unverified"
+    }
+  },
+  "profileAndGuide": {
+    "installer_execution": "Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI",
+    "existing_setup_skipped_and_team_editable_by_default": true,
+    "same_extension_id": true,
+    "accounts_theme_source_and_opfs_handle_preserved": true,
+    "prisma_guide_manager_copy_and_policy_notice": true,
+    "guide_copy_handlers_new_update_modes_and_three_viewports": true,
+    "guide_native_clipboard_changed": false
+  },
+  "regression": {
+    "baselineVersion": "1.3.5",
+    "fault": "A disposable fixture leaves Chrome executeScript pending on the session-picker document; production timeout/timer APIs are not altered.",
+    "baselineOutcome": "Remains at broker with no applied stages after12s; the old per-tab queue cannot serve content messages.",
+    "candidateOutcome": "The per-tab queue stays responsive even while injection is pending; content handshake and exact-session/new-login actions continue. If no driver/layout is usable, a persistent one-shot alarm changes only the tracked session-picker document to Oracle changeTenant after about5s.",
+    "customerDiagnostic": "User supplied1.3.5/broker/tenancyVerified=false/identityReady=false/applied=[]; no private customer values retained.",
+    "causalityLimit": "The pending-injection failure is reproduced deterministically. The exact cause in the user browser has not been inspected directly."
+  },
+  "behavior": [
+    "Injection completion runs outside the per-tab message queue; three-second request deadline, per-document deduplication and current-job/document rechecks",
+    "A valid content handshake prevents a redundant injection timeout from stopping a working driver",
+    "A stalled exact official session-picker route can recover once into changeTenant with its original query",
+    "No recovery after a step claim/application, cancellation, different document, window/privacy mismatch or pending manual navigation",
+    "Injection start/completion, content handshake and recovery are distinct allowlisted diagnostic events"
+  ],
+  "unchanged": [
+    "Existing account storage, UI/focus/theme, team-file connection, engine/content and host permissions",
+    "Normal exact tenancy/username/domain session matching and credential release validation",
+    "Single offlineCMD/manual registration, same path, prior releases and unrecognized-install protection"
+  ],
+  "windowsInstaller": {
+    "requiredSourceMatchedCI": true,
+    "nodeTests": 51,
+    "actualWindowsCMDAndPowerShellTests": 17,
+    "previousPublishedUpgrade": "1.3.5r14 exact published payload aa6cae58ef024b440b0242681ea95f3c818d360fb2e889f746e79c3324633bc0"
+  },
+  "limitations": [
+    "Browser reports are disposable Linux Chromium with loopback TLS fixtures and fictional accounts; actual customer Oracle authentication and user browser are not exercised",
+    "Host permissions and the private-mode extension toggle are supplied only in disposable test profiles; no actual user browser approval is automated",
+    "OneDrive cloud transport, Windows native file consent and the actual Prisma binary/policies are not exercised; previous Brave/file-sharing checks are retained as baselines",
+    "Existing plaintext storage remains; vault encryption/startup unlock has not been implemented"
+  ]
+}
