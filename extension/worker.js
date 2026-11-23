@@ -1,4 +1,4 @@
-import {normalizeProfile,patternsFor,CONSOLE_ORIGIN,bindingKey,canLearnIdentity,isAutoIdentityOrigin,isBrokerOrigin,routingKind,isOAuthBridge,BROKER_ORIGIN,canEnterBroker,ENTRY_ORIGIN,ENTRY_PATH,ENTRY_PATTERN,canEnterEntry,sessionRecoveryURL} from './lib/model.js';
+import {normalizeProfile,patternsFor,CONSOLE_ORIGIN,bindingKey,canLearnIdentity,isAutoIdentityOrigin,isBrokerOrigin,routingKind,isOAuthBridge,BROKER_ORIGIN,canEnterBroker,ENTRY_ORIGIN,ENTRY_PATH,ENTRY_PATTERN,canEnterEntry,sessionRecoveryURL,LOGIN_ENTRY_URL} from './lib/model.js';
 import {readSource,writeList,sourceRef} from './lib/sources.js';
 import {appendBulkProfiles} from './lib/bulk.js';
 import {validateLaunchWindow} from './lib/windows.js';
@@ -123,13 +123,13 @@ async function start(m){
       chrome.tabs.get(tab.id).then(t=>{if(t.status==='complete')end();},()=>end(new UserError('로그인 탭이 닫혔습니다.')));
     });
   }
-  // The first HTTP redirect can commit directly at Oracle's account entry:
-  // cloud.oracle.com itself need not produce a committed document.
-  const j={profile,...scope,mode:m.mode==='fill'?'fill':'login',expiresAt:Date.now()+ttl,claims:{},applied:{},tenancyVerified:false,activeOrigin:m.mode==='fill'?new URL(tab.url).origin:CONSOLE_ORIGIN,activeIdentity,documentId};
+  // Always enter the selected tenancy before consulting console sessions.
+  // Starting at the console can divert to its unrelated active-session picker.
+  const j={profile,...scope,mode:m.mode==='fill'?'fill':'login',expiresAt:Date.now()+ttl,claims:{},applied:{},tenancyVerified:false,activeOrigin:m.mode==='fill'?new URL(tab.url).origin:ENTRY_ORIGIN,activeIdentity,documentId};
   trace(j,'start');
   await putJob(tab.id,j);await chrome.alarms.create(`expire:${tab.id}`,{when:j.expiresAt});await status(tab.id,'테넌시 로그인 화면을 여는 중입니다.');
   await chrome.action.setBadgeText({tabId:tab.id,text:'…'});await register();
-  if(m.mode==='fill')await inject(tab.id,tab.url);else await chrome.tabs.update(tab.id,{url:CONSOLE_ORIGIN+'/'});
+  if(m.mode==='fill')await inject(tab.id,tab.url);else await chrome.tabs.update(tab.id,{url:LOGIN_ENTRY_URL});
   return {ok:true,tabId:tab.id};
 }
 const stages=['sessionPick','newLogin','changeTenancy','tenancy','domainOpen','domainPick','domain','credentials','username','alternative','bypassChoice','bypass'];

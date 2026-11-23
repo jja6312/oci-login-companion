@@ -62,7 +62,12 @@ async def main():
     else:body=form('<select id="identityDomain"><option>Other</option><option>Default</option></select>',IDENTITY+'/credentials',"identityDomain.value==='Default'",'Continue')
    elif url==ENTRY+'/cloud/sign-in.html':
     # Public Oracle entry uses an anchor outside a form, not a submit button.
-    body=html('<input id="cloudAccountName" type="input"><div class="rc63submit inActive"><div class="obttn"><a id="cloudAccountButton" href="javascript:void(0)">Next</a></div></div>',f"cloudAccountButton.onclick=()=>{{if(cloudAccountName.value==='cloudragon-prod')location.href='{BROKER}/v2/ui/domains';}}")
+    if scenario=='regional-unverified':body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
+    elif scenario.startswith('session-') and scenario!='session-entry':body=html('<p>Unexpected session redirect fixture</p>',f"location.replace('{BROKER}/v2/ui/sessionPicker');")
+    elif scenario=='hold':body=html('<p>Waiting for tenancy UI</p>')
+    else:
+     next_url=BROKER+'/v2/ui/domains' if scenario=='session-entry' else CONSOLE+'/domain'
+     body=html('<input type="search" aria-label="Site search"><input id="cloudAccountName" type="input" value="previous-fixture-tenant"><div class="rc63submit inActive"><div class="obttn"><a id="cloudAccountButton" href="javascript:void(0)">Next</a></div></div>',f"cloudAccountButton.onclick=()=>{{if(cloudAccountName.value==='cloudragon-prod')location.href='{next_url}';}}")
    elif url==BROKER+'/v1/oauth2/authorize':
     hop=OTHER_ROUTE if scenario=='regional-other' else REGIONAL_OCI if scenario=='regional-oci' else REGIONAL
     body=html('<p>Authorize</p>',f"location.href='{hop}/v1/oauth2/authorize';")
@@ -251,13 +256,14 @@ async def main():
    await page.evaluate('(id)=>chrome.windows.update(id,{focused:true})',normal_scope['windowId'])
    await page.evaluate('''async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('private-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await(await import('./lib/db.js')).handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',PROFILE)
    before_meta=await page.evaluate('chrome.storage.local.get(["identityBindings","lastUsed"])')
+   entry_begin=len(requests)
    r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;tid=r['tabId']
    for _ in range(260):
     st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
     if st and not st['running']:break
     await page.wait_for_timeout(120)
    assert st['step']=='complete',{'status':st,'requests':requests[-12:]}
-   target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';ok('real Chromium private window completes fixture tenancy/password/bypass login in exact initiating window despite normal focus')
+   target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:];ok('real Chromium private window starts at official tenancy entry and completes password/bypass in exact initiating window despite normal focus')
    scenario='session-recovery-layout'
    r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;recovered=r['tabId']
    for _ in range(260):
@@ -439,6 +445,7 @@ async def main():
     await page.wait_for_timeout(100)
    raise AssertionError(t)
   # Start using actual tenancy search + Enter, with no URL or preconfigured identity.
+  entry_begin=len(requests)
   await page.locator('#search').fill('cloudragon-prod')
   await page.locator('#search').press('Enter')
   for _ in range(80):
@@ -446,6 +453,7 @@ async def main():
    if items.get('items'):break
    await page.wait_for_timeout(100)
   tid=items['items'][0]['tabId'];s=await wait_end(tid);assert s['step']=='complete',s;assert not await page.evaluate('(id)=>chrome.storage.session.get("job:"+id)',tid);ok('tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console')
+  assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:] and BROKER+'/v2/ui/sessionPicker' not in requests[entry_begin:];assert s['debug']['route'][0]=='account-entry';ok('normal login starts at official tenancy entry, replaces a remembered tenancy and avoids the console-first session picker')
   bindings=await page.evaluate("async()=> (await chrome.storage.local.get('identityBindings')).identityBindings");assert list(bindings.values())[0]['origin']==IDENTITY;ok('verified identity metadata is learned without storing a website field')
   tid=await direct_start();assert (await wait_end(tid))['step']=='complete';ok('same reusable admin bypass code succeeds on second login')
   scenario='custom';tid=await direct_start();assert (await wait_end(tid))['step']=='complete';ok('custom domain picker, Korean alternate label and styled bypass radio complete')

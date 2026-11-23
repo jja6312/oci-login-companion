@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS = Object.freeze({mode:'local', fileKind:'picker'})
 export const CONSOLE_ORIGIN = 'https://cloud.oracle.com';
 export const ENTRY_ORIGIN='https://www.oracle.com';
 export const ENTRY_PATH='/cloud/sign-in.html';
+export const LOGIN_ENTRY_URL=ENTRY_ORIGIN+ENTRY_PATH;
 export const ENTRY_PATTERN=ENTRY_ORIGIN+ENTRY_PATH+'*';
 export const BROKER_ORIGIN = 'https://login.oci.oraclecloud.com';
 // A stalled session picker can always return to Oracle's own account-entry
@@ -41,7 +42,7 @@ export function normalizeProfile(raw) {
   const rawOrigins=raw.identityOrigins??[];
   if (!Array.isArray(rawOrigins) || rawOrigins.length > 8) throw new Error('인증 도메인 목록을 확인해 주세요.');
   const identityOrigins = [...new Set(rawOrigins.map(exactOrigin))];
-  // Read old exports safely. New logins always start at the fixed OCI console.
+  // Read old exports safely. New logins use Oracle's fixed tenancy-entry page.
   if(raw.loginUrl){const start=oracleURL(raw.loginUrl);if(start.origin!==CONSOLE_ORIGIN&&!identityOrigins.includes(start.origin))throw new Error('기존 로그인 주소의 인증 도메인을 확인해 주세요.');}
   const selectors = {};
   if (raw.selectors !== undefined) {
