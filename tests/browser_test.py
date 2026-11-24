@@ -1,3 +1,4 @@
+from fixture_permissions import auth_permissions
 """Offline integration of shipped extension. Oracle hostnames use a loopback TLS fixture.
 Fixture copy pregrants OCI permissions; native Chrome approval UI is not automated.
 """
@@ -31,13 +32,23 @@ def mfa_fixture(scenario):
  for(const e of document.querySelectorAll('[id="idcs-mfa-mfa-auth-bypasscode-backup-button"]'))(e.matches('oj-button')?e.querySelector('button'):e).onclick=()=>{fixtureStats.choice++;document.getElementById('push-view').hidden=true;document.getElementById('bypass-view').hidden=false;};
  const form=document.getElementById('bypass-form'),submit=form.querySelector('button');form.addEventListener('input',()=>setTimeout(()=>submit.disabled=false,200));form.onsubmit=e=>{e.preventDefault();fixtureStats.verify++;const values=[...form.querySelectorAll('input')];if(values.length===1&&values[0].value==='000123'&&fixtureStats.choice===1&&fixtureStats.verify===1&&!fixtureStats.smsWrites&&!fixtureStats.other)location.href=DEST;};""".replace('DEST',json.dumps(CONSOLE+'/done?mfa=1&choice=1&verify=1&sms=0&other=0'))
  return html(body,script)
+def regional_domain_fixture(scenario,spa=False):
+ options='<option value="other">Other</option><option value="default-ocid">Default</option>'
+ if scenario=='regional-domain-preselected':options=options.replace('value="default-ocid"','value="default-ocid" selected')
+ if scenario=='regional-domain-missing':options='<option value="other">Other</option>'
+ if scenario=='regional-domain-ambiguous':options+='<option value="duplicate">Default</option>'
+ tenant='wrong-tenant' if scenario=='regional-domain-wrong-tenant' else PROFILE['tenancy']
+ controls='<div class="login-prompt"><p class="username-prompt">'+tenant+'</p></div><select name="domainSelect">'+options+'</select><input id="username"><input id="password" type="password"><input id="bypassCode"><a id="domain-next" href="#">'+('다음' if scenario=='regional-domain-ko' else 'Next')+'</a>'
+ setup=f"globalThis.fixtureDomainClicks=0;document.getElementById('domain-next').onclick=e=>{{e.preventDefault();fixtureDomainClicks++;if({json.dumps(scenario!='regional-domain-guard')}&&document.querySelector('select').value==='default-ocid'&&!username.value&&!password.value&&!bypassCode.value)location.href='{IDENTITY}/credentials';}}"
+ if spa:return html('<p>OAuth app shell</p>',"setTimeout(()=>{history.replaceState({},'', '/v2/ui/domains?referer=fixture');document.body.innerHTML="+json.dumps(controls)+";"+setup+"},1200);")
+ return html(controls,setup)
 async def main():
  ext=WORK/'extension-fixture';shutil.rmtree(ext,ignore_errors=True);shutil.copytree(ROOT/'extension',ext)
  if '--session-only' in sys.argv:
   # Model Chrome leaving executeScript pending without altering production
   # timeouts or timer APIs. The shipped worker must release its per-tab queue.
   worker_path=ext/'worker.js';worker_path.write_text(worker_path.read_text()+"\nconst fixtureExecute=chrome.scripting.executeScript.bind(chrome.scripting),fixtureRegister=chrome.scripting.registerContentScripts.bind(chrome.scripting);chrome.scripting.executeScript=async(args)=>{const frame=await chrome.webNavigation.getFrame({tabId:args.target.tabId,frameId:0}).catch(()=>null);if(globalThis.fixtureHoldSessionInjection&&frame?.url.includes('/v2/ui/sessionPicker'))return new Promise(()=>{});return fixtureExecute(args);};chrome.scripting.registerContentScripts=scripts=>fixtureRegister(scripts.map(s=>({...s,matches:s.matches.filter(x=>!globalThis.fixtureNoBrokerDriver||x!=='https://login.oci.oraclecloud.com/*')})));\n")
- m=json.loads((ext/'manifest.json').read_text());m['host_permissions']=['https://www.oracle.com/*','https://login.oci.oraclecloud.com/*','https://cloud.oracle.com/*','https://*.identity.oraclecloud.com/*','https://login.oraclecloud.com/*','https://signin.oraclecloud.com/*',REGIONAL+'/*',REGIONAL_OCI+'/*'];(ext/'manifest.json').write_text(json.dumps(m))
+ m=json.loads((ext/'manifest.json').read_text());m['host_permissions']=auth_permissions(ext);(ext/'manifest.json').write_text(json.dumps(m))
  profdir=WORK/'browser-profile';shutil.rmtree(profdir,ignore_errors=True)
  shots=WORK/'screenshots';shots.mkdir(exist_ok=True);errors=[];scenario='session-match' if '--session-only' in sys.argv else 'normal';requests=[]
  sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
@@ -49,12 +60,13 @@ async def main():
   async def route(r):
    url=r.request.url.split('?',1)[0];requests.append(r.request.url)
    if url==CONSOLE+'/':
-    if scenario=='regional-unverified':body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
+    if scenario in ['regional-unverified','regional-domain-unverified']:body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
     elif scenario=='redirect-http':await r.fulfill(status=302,headers={'Location':ENTRY+'/cloud/sign-in.html'});return
     elif scenario=='session-entry':body=html('<p>Redirecting</p>',f"location.replace('{ENTRY}/cloud/sign-in.html');")
     elif scenario.startswith('session-'):body=html('<p>Redirecting</p>',f"location.replace('{BROKER}/v2/ui/sessionPicker');")
     elif scenario=='hold':body=html('<p>Waiting for tenancy UI</p>')
     else:body=form('<input id="cloudAccountName">',CONSOLE+'/domain',"cloudAccountName.value==='cloudragon-prod'",'Next')
+   elif url==CONSOLE+'/regional-domain-route':body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
    elif url==CONSOLE+'/retry-entry':body=form('<input id="cloudAccountName">',CONSOLE+'/domain',"cloudAccountName.value==='cloudragon-prod'",'Next')
    elif url==CONSOLE+'/domain':
     if scenario=='custom':body=html('<button id="identityDomain" role="combobox" aria-label="Identity domain">Choose domain</button><div id="choices" hidden><button role="option">Default</button></div><button id="next" disabled>Continue</button>',f"identityDomain.onclick=()=>choices.hidden=false;document.querySelector('[role=option]').onclick=()=>{{identityDomain.textContent='Default';choices.hidden=true;next.disabled=false;}};next.onclick=()=>location.href='{IDENTITY}/credentials';")
@@ -62,19 +74,23 @@ async def main():
     else:body=form('<select id="identityDomain"><option>Other</option><option>Default</option></select>',IDENTITY+'/credentials',"identityDomain.value==='Default'",'Continue')
    elif url==ENTRY+'/cloud/sign-in.html':
     # Public Oracle entry uses an anchor outside a form, not a submit button.
-    if scenario=='regional-unverified':body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
+    if scenario in ['regional-unverified','regional-domain-unverified']:body=html('<p>Continue</p>',f"location.replace('{BROKER}/v1/oauth2/authorize');")
     elif scenario.startswith('session-') and scenario!='session-entry':body=html('<p>Unexpected session redirect fixture</p>',f"location.replace('{BROKER}/v2/ui/sessionPicker');")
     elif scenario=='hold':body=html('<p>Waiting for tenancy UI</p>')
     else:
-     next_url=BROKER+'/v2/ui/domains' if scenario=='session-entry' else CONSOLE+'/domain'
+     next_url=CONSOLE+'/regional-domain-route' if scenario.startswith('regional-domain') else BROKER+'/v2/ui/domains' if scenario=='session-entry' else CONSOLE+'/domain'
      body=html('<input type="search" aria-label="Site search"><input id="cloudAccountName" type="input" value="previous-fixture-tenant"><div class="rc63submit inActive"><div class="obttn"><a id="cloudAccountButton" href="javascript:void(0)">Next</a></div></div>',f"cloudAccountButton.onclick=()=>{{if(cloudAccountName.value==='cloudragon-prod')location.href='{next_url}';}}")
    elif url==BROKER+'/v1/oauth2/authorize':
-    hop=OTHER_ROUTE if scenario=='regional-other' else REGIONAL_OCI if scenario=='regional-oci' else REGIONAL
+    hop=OTHER_ROUTE if scenario=='regional-other' else REGIONAL_OCI if scenario in ['regional-oci','regional-domain-oci'] else REGIONAL
     body=html('<p>Authorize</p>',f"location.href='{hop}/v1/oauth2/authorize';")
    elif url in [REGIONAL+'/v1/oauth2/authorize',REGIONAL_OCI+'/v1/oauth2/authorize']:
-    if scenario in ['regional-guard','regional-manual']:body=html('<input name="username"><input type="password" name="password"><input id="bypassCode"><button>Sign in</button>')
+    if scenario=='regional-domain-spa':body=regional_domain_fixture(scenario,spa=True)
+    elif scenario.startswith('regional-domain'):body=html('<p>Continue</p>',"location.href='/v2/ui/domains?referer=fixture';")
+    elif scenario in ['regional-guard','regional-manual']:body=html('<input name="username"><input type="password" name="password"><input id="bypassCode"><button>Sign in</button>')
     else:
      origin=url.split('/v1/',1)[0];body=html('<form action="'+origin+'/v1/forward" method="post"><input type="hidden" name="fixture" value="oauth-only"></form>',"document.forms[0].submit();")
+   elif url in [REGIONAL+'/v2/ui/domains',REGIONAL_OCI+'/v2/ui/domains']:
+    body=regional_domain_fixture(scenario)
    elif url in [REGIONAL+'/v1/forward',REGIONAL_OCI+'/v1/forward']:await r.fulfill(status=302,headers={'Location':IDENTITY+'/credentials'});return
    elif url==OTHER_ROUTE+'/v1/oauth2/authorize':body=html('<input name="username"><input type="password" name="password"><button>Sign in</button>')
    elif url==BROKER+'/v2/ui/sessionPicker':
@@ -256,6 +272,7 @@ async def main():
    await page.evaluate('(id)=>chrome.windows.update(id,{focused:true})',normal_scope['windowId'])
    await page.evaluate('''async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('private-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await(await import('./lib/db.js')).handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',PROFILE)
    before_meta=await page.evaluate('chrome.storage.local.get(["identityBindings","lastUsed"])')
+   scenario='regional-domain-ko'
    entry_begin=len(requests)
    r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;tid=r['tabId']
    for _ in range(260):
@@ -263,7 +280,7 @@ async def main():
     if st and not st['running']:break
     await page.wait_for_timeout(120)
    assert st['step']=='complete',{'status':st,'requests':requests[-12:]}
-   target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:];ok('real Chromium private window starts at official tenancy entry and completes password/bypass in exact initiating window despite normal focus')
+   target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:];ok('real Chromium private window passes regional domain selection and completes password/bypass in exact initiating private window')
    scenario='session-recovery-layout'
    r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;recovered=r['tabId']
    for _ in range(260):
@@ -357,6 +374,42 @@ async def main():
     if scenario in ['regional-forward','regional-oci']:
      assert st['step']=='complete',st;bindings=await page.evaluate('chrome.storage.local.get("identityBindings")');assert list(bindings['identityBindings'].values())[0]['origin']==IDENTITY;ok(scenario+' tracks global→regional→IDCS and completes without binding broker as identity')
     else:assert st['step']=='stopped' and st['reason']==('unverified-tenancy' if scenario=='regional-unverified' else 'unsupported-origin'),st;ok(scenario+' still stops with an explicit privacy-safe reason')
+   for scenario in ['regional-domain-default','regional-domain-preselected','regional-domain-oci','regional-domain-ko','regional-domain-spa','regional-domain-missing','regional-domain-ambiguous','regional-domain-wrong-tenant']:
+    tid=await start_regional();st=await wait_regional(tid)
+    if scenario in ['regional-domain-missing','regional-domain-ambiguous','regional-domain-wrong-tenant']:
+     assert st['step']=='stopped' and st['reason']=='page-error',st
+     target=next(x for x in ctx.pages if '/v2/ui/domains' in x.url)
+     assert await target.evaluate("fixtureDomainClicks===0&&[...document.querySelectorAll('input')].every(e=>e.value==='')")
+     ok(scenario+' stops without submitting or filling any credentials')
+    else:
+     assert st['step']=='complete' and 'domain' in st['debug']['applied'] and 'bypass' in st['debug']['applied'],st
+     ok(scenario+' selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login')
+   scenario='regional-domain-guard';tid=await start_regional()
+   for _ in range(160):
+    target=next((x for x in ctx.pages if '/v2/ui/domains' in x.url),None)
+    if target and await target.evaluate('globalThis.fixtureDomainClicks===1'):break
+    await page.wait_for_timeout(100)
+   assert target
+   denied=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:async()=>({context:await chrome.runtime.sendMessage({type:'CONTEXT'}),claims:await Promise.all(['tenancy','sessionPick','newLogin','credentials','username','bypass','alternative','bypassChoice'].map(stage=>chrome.runtime.sendMessage({type:'CLAIM',stage}))),applied:await chrome.runtime.sendMessage({type:'APPLIED',stage:'credentials'}),complete:await chrome.runtime.sendMessage({type:'COMPLETE'})})}))[0].result''',tid)
+   context=denied['context']['context'];assert context['domainOnly'] and not context['identity'] and not context['broker'] and 'username' not in context
+   assert all(not x['ok'] for x in denied['claims']) and not denied['applied']['ok'] and not denied['complete']['ok']
+   assert all(v not in json.dumps(denied) for v in [PROFILE['username'],PROFILE['password'],PROFILE['bypassCode']])
+   assert await target.evaluate("fixtureDomainClicks===1&&[...document.querySelectorAll('input')].every(e=>e.value==='')")
+   ok('regional domain page receives only tenancy/domain metadata, denies every secret claim and submits exactly once')
+   await target.evaluate("history.pushState({},'', '/v2/ui/native')")
+   context=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:()=>chrome.runtime.sendMessage({type:'CONTEXT'})}))[0].result''',tid)
+   assert not context['ok'];ok('same-document regional path change immediately loses access to context')
+   await page.evaluate('(id)=>chrome.runtime.sendMessage({type:"CANCEL",tabId:id})',tid)
+   scenario='regional-domain-unverified';tid=await start_regional()
+   for _ in range(160):
+    target=next((x for x in ctx.pages if '/v2/ui/domains' in x.url),None)
+    if target and await target.evaluate("!!document.querySelector('select')"):break
+    await page.wait_for_timeout(100)
+   assert target;await page.wait_for_timeout(1500)
+   denied=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:async()=>({context:await chrome.runtime.sendMessage({type:'CONTEXT'}),domain:await chrome.runtime.sendMessage({type:'CLAIM',stage:'domain'})})}))[0].result''',tid)
+   assert not denied['context']['ok'] and not denied['domain']['ok'] and await target.evaluate("fixtureDomainClicks===0&&[...document.querySelectorAll('input')].every(e=>e.value==='')")
+   ok('unverified tenancy cannot obtain even a domain claim on a regional chooser')
+   await page.evaluate('(id)=>chrome.runtime.sendMessage({type:"CANCEL",tabId:id})',tid)
    scenario='regional-guard';tid=await start_regional()
    for _ in range(120):
     tab=await page.evaluate('(id)=>chrome.tabs.get(id)',tid)
@@ -364,7 +417,7 @@ async def main():
     await page.wait_for_timeout(100)
    denied=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:async()=>({injected:!!globalThis.OCILoginEngine,context:await chrome.runtime.sendMessage({type:'CONTEXT'}),credentials:await chrome.runtime.sendMessage({type:'CLAIM',stage:'credentials'}),bypass:await chrome.runtime.sendMessage({type:'CLAIM',stage:'bypass'})})}))[0].result''',tid)
    assert not denied['injected'] and all(not denied[k]['ok'] for k in ['context','credentials','bypass']);ok('regional broker is navigation-only: no automatic injection, context, password or bypass even after verified tenancy')
-   registered=await page.evaluate('chrome.scripting.getRegisteredContentScripts()');assert not any(REGIONAL in x or REGIONAL_OCI in x for row in registered for x in row['matches']);ok('regional automatic content scripts stay excluded even with test-only exact origin grants')
+   registered=await page.evaluate('chrome.scripting.getRegisteredContentScripts()');regional_matches=[x for row in registered for x in row['matches'] if REGIONAL in x or REGIONAL_OCI in x];assert regional_matches and all(x.endswith('/v2/ui/domains*') for x in regional_matches);ok('regional content registration is limited to the domain chooser and excludes OAuth/native pages')
    await page.evaluate('(p)=>chrome.storage.local.set({profiles:[{...p,identityOrigins:["https://login.us-ashburn-1.oraclecloud.com"]}]})',PROFILE)
    fill=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"fill"});}',PROFILE);assert not fill['ok'];await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE);ok('regional broker refuses fill-only even if an imported profile explicitly lists it as an identity')
 
@@ -379,7 +432,7 @@ async def main():
    encoded=json.dumps(report);assert report['ok'] and report['report']['version']==json.loads((ROOT/'extension/manifest.json').read_text())['version'] and report['report']['reason']=='unsupported-origin';assert all(v not in encoded for v in [PROFILE['tenancy'],PROFILE['username'],PROFILE['password'],PROFILE['bypassCode'],IDENTITY,REGIONAL]);ok('diagnostics export contains routing categories and reason but no account, hostname or secret')
    await page.locator('#more').click();await page.locator('#diagnostics').click();await expect(page.locator('#toast')).to_have_text('진단 정보를 복사했습니다');ok('user-triggered diagnostic copy works from existing account menu')
    assert not errors,errors
-   (WORK/'regional-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only regional grants used to verify explicit deny and no registration'},ensure_ascii=False,indent=2)+'\n')
+   (WORK/'regional-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only exact regional grants; domain chooser full flow and OAuth/secret/same-document deny checks'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
   if '--redirect-only' in sys.argv:
    await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)

@@ -1,0 +1,377 @@
+{
+  "version": "1.3.8",
+  "installerRevision": 17,
+  "reported137Issue": {
+    "incognito": true,
+    "status": "broker",
+    "host": "regional-broker",
+    "tenancyVerified": true,
+    "identityReady": false,
+    "applied": [
+      "tenancy"
+    ]
+  },
+  "change": "Handle the exact regional ID domain chooser; validate tenancy and select saved domain; support Oracle same-document OAuth-to-chooser routing; release no username/password/bypass fields to regional hosts.",
+  "permissions": {
+    "manifestOptionalHostDeclarationUnchanged": true,
+    "additionalGrantAtLoginClick": true,
+    "grantScope": "Exact login hosts for 44 OC1 commercial regions, both regional hostname forms; browser host grants cover the whole host, runtime processing requires exact /v2/ui/domains and verified document/tenancy",
+    "oracleRegionSource": "https://docs.oracle.com/en-us/iaas/Content/General/Concepts/regions.htm",
+    "regionListReviewedDate": "2026-11-24",
+    "regionalOAuthAndOtherPathsRemainNavigationOnly": true
+  },
+  "freshAppChecks": 138,
+  "nodeChecks": 53,
+  "browserReports": {
+    "general": {
+      "count": 32,
+      "checks": [
+        "completed local setup has only add-account action and its shortcut",
+        "four-field editor saves leading-zero bypass code without website URL",
+        "bypass reveal is explicit and masked on reload",
+        "user-triggered copy shows confirmation",
+        "custom color and light mode persist independently of credentials",
+        "explicit export includes selected source",
+        "import conflict preserves account",
+        "explicit import update succeeds",
+        "tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console",
+        "normal login starts at official tenancy entry, replaces a remembered tenancy and avoids the console-first session picker",
+        "verified identity metadata is learned without storing a website field",
+        "same reusable admin bypass code succeeds on second login",
+        "custom domain picker, Korean alternate label and styled bypass radio complete",
+        "automatic scripts registered only for exact granted origins",
+        "SMS challenge with bypass link never receives static code",
+        "duplicate screen stops before secret entry",
+        "invalid screen stops before secret entry",
+        "unverified navigation to another identity receives no credentials",
+        "changed target metadata aborts login",
+        "fill-only populates credentials without submitting",
+        "content script cannot read local vault storage",
+        "expired job secrets are removed",
+        "connected team source is editable by default without an application checkbox",
+        "file handle persists and changed team bytes are reread",
+        "invalid team file never falls back to personal credentials",
+        "tenancy search selects matching accounts and handles no results",
+        "account editing updates the selected tenancy",
+        "explicit account deletion removes only selected account",
+        "vault fits desktop, tablet and 390px without horizontal overflow",
+        "appearance is shared between popup and options",
+        "actual 780x580 popup fits approved two-column layout",
+        "extension UI has no JavaScript or CSP console errors"
+      ],
+      "network": "OCI hostnames mapped to loopback-only TLS fixture; no real Oracle traffic",
+      "scope": "Linux Chromium; fixture permissions pregranted; OPFS file handles; real OCI, Windows native launch and Chrome permission dialog unverified"
+    },
+    "features": {
+      "count": 18,
+      "checks": [
+        "six circular preset colors change and persist from main UI without opening settings",
+        "customer alias is a basic account field outside advanced settings",
+        "mismatched pasted columns block entire registration without saving any account",
+        "empty password cell identifies its row and never shifts the following credentials",
+        "25-row preview preserves order and aliases while masking secrets and omitting them from table",
+        "one confirmation appends all25 accounts atomically and clears pasted credentials afterward",
+        "customer alias search and display persist through reload with legacy name schema",
+        "editing customer alias updates subsequent search without changing authentication target",
+        "duplicate target is rejected and Escape clears the whole unsaved batch",
+        "worker rejects bulk writes when active team source is read-only",
+        "real Chromium private window passes regional domain selection and completes password/bypass in exact initiating private window",
+        "stalled session recovery completes tenancy/password/bypass in the same initiating private window",
+        "normal and private OCI cookie jars stay separate during automatic login",
+        "private login reads shared vault/team handle but does not persist learned identity or last-used browsing metadata",
+        "private job status is excluded from normal-window UI",
+        "closed private origin window fails without opening a replacement normal tab",
+        "bulk dialog fits desktop/tablet/mobile and quick palette fits actual780x580 popup",
+        "25 and300 account lists scroll within popup, retain footer, and reach last account by keyboard"
+      ],
+      "network": "Loopback-only TLS fixtures; real disposable Chromium normal/private windows and cookie jars",
+      "scope": "Linux Chromium; incognito toggle enabled on disposable browser settings; API START uses originating window snapshot; actual Windows/Brave shortcut popup remains unverified"
+    },
+    "regional": {
+      "count": 21,
+      "checks": [
+        "regional-forward tracks global→regional→IDCS and completes without binding broker as identity",
+        "regional-oci tracks global→regional→IDCS and completes without binding broker as identity",
+        "regional-unverified still stops with an explicit privacy-safe reason",
+        "regional-other still stops with an explicit privacy-safe reason",
+        "regional-domain-default selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login",
+        "regional-domain-preselected selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login",
+        "regional-domain-oci selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login",
+        "regional-domain-ko selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login",
+        "regional-domain-spa selects exact saved domain, clicks Next once with empty credentials and completes identity/bypass login",
+        "regional-domain-missing stops without submitting or filling any credentials",
+        "regional-domain-ambiguous stops without submitting or filling any credentials",
+        "regional-domain-wrong-tenant stops without submitting or filling any credentials",
+        "regional domain page receives only tenancy/domain metadata, denies every secret claim and submits exactly once",
+        "same-document regional path change immediately loses access to context",
+        "unverified tenancy cannot obtain even a domain claim on a regional chooser",
+        "regional broker is navigation-only: no automatic injection, context, password or bypass even after verified tenancy",
+        "regional content registration is limited to the domain chooser and excludes OAuth/native pages",
+        "regional broker refuses fill-only even if an imported profile explicitly lists it as an identity",
+        "typed identity navigation from a regional broker cannot become a trusted identity",
+        "diagnostics export contains routing categories and reason but no account, hostname or secret",
+        "user-triggered diagnostic copy works from existing account menu"
+      ],
+      "scope": "Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only exact regional grants; domain chooser full flow and OAuth/secret/same-document deny checks"
+    },
+    "sessions": {
+      "count": 14,
+      "checks": [
+        "real Oracle session-card DOM selects only exact tenancy, case-sensitive username and domain; no new credentials",
+        "session-none continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-entry continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-native continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-expired continues through actual broker tenancy/domain, credentials, bypass and console",
+        "session-ambiguous stops without choosing a different account",
+        "session-no-control stops without choosing a different account",
+        "session-recovery-layout automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session-recovery-pending-injection automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session-recovery-no-driver automatically recovers the broker/no-applied-step state through tenancy, credentials and bypass",
+        "session recovery respects cancellation before the alarm",
+        "session recovery respects manual navigation away from the tracked document",
+        "unverified session broker is denied password and bypass claims",
+        "changed session metadata is rechecked before any click"
+      ],
+      "network": "Loopback-only TLS fixtures; Oracle public script used only to identify DOM selectors; zero customer session data in tests",
+      "scope": "Linux Chromium shipped worker/content/engine; actual user logged-in session not controlled"
+    }
+  },
+  "actualPublicOracle": {
+    "baseline": {
+      "version": "1.3.7",
+      "status": "broker",
+      "routeKinds": [
+        "other",
+        "account-entry",
+        "console",
+        "broker",
+        "regional-broker"
+      ],
+      "state": {
+        "tenancyVerified": true,
+        "identityReady": false,
+        "domainApplied": false,
+        "credentialClaimApproved": false,
+        "bypassClaimApproved": false
+      },
+      "actualCredentialSubmission": false
+    },
+    "candidate": {
+      "probe": null,
+      "label": "candidate",
+      "version": "1.3.8",
+      "status": "identity",
+      "message": "OCI 인증 화면을 확인했습니다.",
+      "routeKinds": [
+        "other",
+        "account-entry",
+        "console",
+        "broker",
+        "regional-broker",
+        "identity",
+        "identity"
+      ],
+      "state": {
+        "tenancyVerified": true,
+        "identityReady": true,
+        "domainApplied": true,
+        "credentialClaimApproved": false,
+        "bypassClaimApproved": false
+      },
+      "deniedSecretStages": [
+        "credentials"
+      ],
+      "authInputsEmpty": true,
+      "regionalPermissionGranted": true,
+      "actualCredentialSubmission": false,
+      "regionalGate": {
+        "senderDomainPath": false,
+        "senderOAuth": true,
+        "liveDomainPath": true,
+        "documentMatches": true
+      },
+      "injectionFailures": [],
+      "debug": {
+        "version": "1.3.8",
+        "incognito": false,
+        "status": "identity",
+        "reason": "none",
+        "host": "identity",
+        "tenancyVerified": true,
+        "identityReady": true,
+        "applied": [
+          "tenancy",
+          "domain"
+        ],
+        "route": [
+          "account-entry",
+          "console",
+          "broker",
+          "regional-broker",
+          "identity"
+        ],
+        "events": [
+          {
+            "kind": "injected",
+            "host": "account-entry",
+            "qualifiers": []
+          },
+          {
+            "kind": "navigate",
+            "host": "console",
+            "transition": "link",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "console",
+            "qualifiers": []
+          },
+          {
+            "kind": "content-ready",
+            "host": "console",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "console",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "console",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "console",
+            "qualifiers": []
+          },
+          {
+            "kind": "navigate",
+            "host": "broker",
+            "transition": "link",
+            "qualifiers": [
+              "client_redirect"
+            ]
+          },
+          {
+            "kind": "navigate",
+            "host": "regional-broker",
+            "transition": "link",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "regional-broker",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "regional-broker",
+            "qualifiers": []
+          },
+          {
+            "kind": "content-ready",
+            "host": "regional-broker",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "regional-broker",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "regional-broker",
+            "qualifiers": []
+          },
+          {
+            "kind": "claim",
+            "host": "regional-broker",
+            "stage": "domain",
+            "qualifiers": []
+          },
+          {
+            "kind": "applied",
+            "host": "regional-broker",
+            "stage": "domain",
+            "qualifiers": []
+          },
+          {
+            "kind": "navigate",
+            "host": "identity",
+            "transition": "form_submit",
+            "qualifiers": [
+              "server_redirect"
+            ]
+          },
+          {
+            "kind": "identity-ready",
+            "host": "identity",
+            "qualifiers": []
+          },
+          {
+            "kind": "navigate",
+            "host": "identity",
+            "transition": "form_submit",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "identity",
+            "qualifiers": []
+          },
+          {
+            "kind": "content-ready",
+            "host": "identity",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "identity",
+            "qualifiers": []
+          },
+          {
+            "kind": "injection-start",
+            "host": "identity",
+            "qualifiers": []
+          },
+          {
+            "kind": "injected",
+            "host": "identity",
+            "qualifiers": []
+          }
+        ]
+      }
+    },
+    "scope": "Fresh anonymous public OCI tenancy-only route; instrumented workers deny all username/password/bypass stages; no credentials entered or authenticated; regional chooser may select a domain only; exact regional host grants are test-only preapproved",
+    "checksPassed": 4
+  },
+  "samePathUpdate": {
+    "previousVersion": "1.3.7",
+    "previousPublicInstallerRevision": 16,
+    "previousWindowsPayloadSHA256": "241802abfc7bda806266b5679731f3208e2afc35d95c7a470ae9aa0b23f7eb01",
+    "installer_execution": "Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI",
+    "existing_setup_skipped_and_team_editable_by_default": true,
+    "same_extension_id": true,
+    "accounts_theme_source_and_opfs_handle_preserved": true,
+    "prisma_guide_manager_copy_and_policy_notice": true,
+    "guide_copy_handlers_new_update_modes_and_three_viewports": true,
+    "guide_native_clipboard_changed": false
+  },
+  "windowsCI": {
+    "workflow": ".github/workflows/test.yml",
+    "requiredBeforePublishing": true,
+    "nodeChecksExpected": 53,
+    "actualCMDAndPowerShellInstallerChecksExpected": 19,
+    "matchingCIArtifactAndAnonymousReleaseDownloadMustBeVerified": true
+  },
+  "limits": [
+    "Public Oracle check stops at authentication screen with all credential claims blocked; no customer password, bypass code or authenticated customer session is used.",
+    "Offline tests use synthetic accounts and loopback TLS. The regional chooser succeeds in an actual disposable private Chromium window, preserving separate Oracle cookies.",
+    "User Windows native permission prompts, real Brave incognito profile, actual Prisma binary/organization policies and OneDrive cloud transport are not verified.",
+    "New regional host grants require user approval when the browser requests them; installed extension must be reloaded manually.",
+    "Vault encryption/startup unlock remain unimplemented. Earlier file-sharing tests are retained baselines, not counted as fresh."
+  ]
+}

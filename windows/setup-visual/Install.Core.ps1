@@ -31,12 +31,12 @@ function Install-OrUpdateOciCompanion {
         [IO.Compression.ZipFile]::ExtractToDirectory($archive,(Join-Path $stage 'unpack'))
         $source=Join-Path $stage 'unpack\payload'
         $manifest=[IO.File]::ReadAllText((Join-Path $source 'extension\manifest.json')) | ConvertFrom-Json
-        if($manifest.name -cne 'OCI Login Companion' -or $manifest.version -cne '1.3.7' -or $manifest.manifest_version -ne 3){throw 'Unexpected extension manifest.'}
+        if($manifest.name -cne 'OCI Login Companion' -or $manifest.version -cne '1.3.8' -or $manifest.manifest_version -ne 3){throw 'Unexpected extension manifest.'}
         $extension=Join-Path $target 'extension';$guide=Join-Path $target 'Install-Guide.html'
         $html=[IO.File]::ReadAllText((Join-Path $source 'Update-Guide.template.html')).Replace('{{EXTENSION_PATH}}',[Net.WebUtility]::HtmlEncode($extension)).Replace('{{INSTALL_MODE}}','new')
         [IO.File]::WriteAllText((Join-Path $source 'Install-Guide.html'),$html,[Text.UTF8Encoding]::new($false))
-        $marker=@{version='1.3.7';setupVersion=16;payloadSha256=$ExpectedHash;chromeRegistration='USER_ACTION_REQUIRED'}
-        $receipt=@{version='1.3.7';payloadSha256=$ExpectedHash;backupPath=$null}
+        $marker=@{version='1.3.8';setupVersion=17;payloadSha256=$ExpectedHash;chromeRegistration='USER_ACTION_REQUIRED'}
+        $receipt=@{version='1.3.8';payloadSha256=$ExpectedHash;backupPath=$null}
         [IO.File]::WriteAllText((Join-Path $source '.oci-companion-setup.json'),($marker|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
         [IO.File]::WriteAllText((Join-Path $source '.oci-companion-update.json'),($receipt|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
         [IO.Directory]::Move($source,$target)

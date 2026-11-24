@@ -1,3 +1,4 @@
+import {REGIONAL_DOMAIN_PATTERNS} from './regions.js';
 export const MAX_BYTES = 524288;
 export const MAX_PROFILES = 300;
 export const SELECTOR_KEYS = ['tenancy','domain','username','password','bypass','submitTenancy','submitDomain','submitCredentials','alternative','bypassChoice','submitBypass'];
@@ -18,7 +19,7 @@ export function sessionRecoveryURL(job,frame) {
     u.pathname='/v2/ui/changeTenant';u.hash='';return u.href;
   }catch{return null;}
 }
-export const AUTO_AUTH_PATTERNS = [ENTRY_PATTERN,'https://cloud.oracle.com/*','https://login.oci.oraclecloud.com/*','https://*.identity.oraclecloud.com/*','https://login.oraclecloud.com/*','https://signin.oraclecloud.com/*'];
+export const AUTO_AUTH_PATTERNS = [ENTRY_PATTERN,'https://cloud.oracle.com/*','https://login.oci.oraclecloud.com/*','https://*.identity.oraclecloud.com/*','https://login.oraclecloud.com/*','https://signin.oraclecloud.com/*',...REGIONAL_DOMAIN_PATTERNS];
 function str(value, label, limit=1000, required=false) {
   if (typeof value !== 'string' || value.length > limit || (required && !value.trim()) || /\u0000/.test(value)) throw new Error(`${label} 값을 확인해 주세요.`);
   return value;

@@ -1,6 +1,6 @@
 /* Shared with fixture tests. Runs only in Chrome's isolated content-script world. */
 (() => {
-  if (globalThis.OCILoginEngine?.version==='1.2.3') return;
+  if (globalThis.OCILoginEngine?.version==='1.3.8') return;
   const rendered=e=>e && !e.hidden && e.getClientRects().length>0 && getComputedStyle(e).visibility!=='hidden' && getComputedStyle(e).display!=='none';
   const visible=e=>rendered(e)&&!e.disabled&&e.getAttribute('aria-disabled')!=='true';
   const text=e=>(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');
@@ -16,7 +16,7 @@
   };
   const defaults={
     tenancy:['#cloudAccountName','#tenant','#tenancy','input[name="tenant"]','input[name="tenancy"]','input[name="cloudAccountName"]','input[autocomplete="organization"]'],
-    domain:['select#identityDomain','select[name="identityDomain"]','select#domain','select[name="domain"]'],
+    domain:['select#identityDomain','select[name="identityDomain"]','select#domain','select[name="domain"]','select[name="domainSelect"]','select[data-testid="identity-domain-dropdown"]'],
     username:['#idcs-signin-basic-signin-form-username','#userid','#username','input[name="username"]','input[name="userid"]','input[autocomplete="username"]'],
     password:['#idcs-signin-basic-signin-form-password','#password','input[name="password"]','input[autocomplete="current-password"]'],
     bypass:['#bypasscode','#bypassCode','input[name="bypassCode"]','input[name="bypasscode"]']
@@ -68,6 +68,13 @@
     if(combo.value===ctx.identityDomain||text(combo)===ctx.identityDomain)return {stage:'domain',submit:next};
     return {stage:'domainOpen',button:combo};
   }
+  function regionalDomainPlan(ctx){
+    const tenants=all('.login-prompt .username-prompt');
+    if(!tenants.length)return null; // Wait for the actual tenancy prompt.
+    const matches=()=>{const current=all('.login-prompt .username-prompt');return current.length===1&&text(current[0]).toLowerCase()===ctx.tenancy.trim().toLowerCase();};
+    if(!matches())throw new Error('regional tenancy mismatch');
+    const plan=domainPlan(ctx);if(plan)plan.verify=matches;return plan;
+  }
   function sessionValues(card){return {tenancy:card.querySelector('.tenant-name .value')?.textContent.trim(),username:card.querySelector('.user-name')?.textContent.trim(),identityDomain:card.querySelector('.domain-name .value')?.textContent.trim()};}
   function sameSession(card,ctx){const v=sessionValues(card);return visible(card)&&v.tenancy?.toLowerCase()===ctx.tenancy.trim().toLowerCase()&&v.username===ctx.username?.trim()&&v.identityDomain===ctx.identityDomain?.trim();}
   function sessionPlan(ctx){
@@ -100,6 +107,7 @@
   function describe(ctx) {
     const error=all('[role="alert"],.oj-message-error,.idcs-error-message,.opcSignInErrorContainer,.opcRedirectUriInvalidError').some(e=>/invalid|incorrect|expired|too many|locked|didn.t work|잘못|틀렸|만료|잠겼|실패|유효하지/i.test(text(e)));
     if(error)return {error:true};
+    if(ctx.domainOnly)return regionalDomainPlan(ctx);
     if(ctx.broker){const session=sessionPlan(ctx);if(session)return session;}
     if(!ctx.identity) {
       const tenancy=field('tenancy',ctx);
@@ -142,6 +150,7 @@
     return null;
   }
   async function execute(plan,ctx,fields,ack=async()=>({ok:true})) {
+    if(plan.verify&&!plan.verify())throw new Error('page target changed');
     if(plan.stage==='credentials') {if(plan.input)setValue(plan.input,fields.username);setValue(plan.password,fields.password);}
     else if(plan.input)setValue(plan.input,fields.value);
     if(plan.input&&plan.stage==='tenancy'&&plan.input.value.trim().toLowerCase()!==fields.value.trim().toLowerCase())throw new Error('tenancy input did not apply');
@@ -160,5 +169,5 @@
       action.click();
     }
   }
-  globalThis.OCILoginEngine={version:'1.2.3',describe,execute,visible};
+  globalThis.OCILoginEngine={version:'1.3.8',describe,execute,visible};
 })();

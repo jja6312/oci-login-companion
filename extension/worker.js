@@ -3,6 +3,7 @@ import {readSource,writeList,sourceRef} from './lib/sources.js';
 import {appendBulkProfiles} from './lib/bulk.js';
 import {validateLaunchWindow} from './lib/windows.js';
 import {trace,snapshot,diagnosticReport} from './lib/diagnostics.js';
+import {REGIONAL_DOMAIN_PATTERNS,isRegionalDomainPage} from './lib/regions.js';
 const ready=Promise.all([chrome.storage.local.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'}),chrome.storage.session.setAccessLevel({accessLevel:'TRUSTED_CONTEXTS'})]);
 const queues=new Map(),ttl=180000;
 const sessionWait=5000,injectionWait=3000,pendingInjections=new Map();
@@ -37,7 +38,7 @@ async function finish(id,message,step='stopped',reason='none'){
   await chrome.storage.session.set({[`status:${id}`]:{tabId:id,profileId:j?.profile.id??prior?.profileId,tenancy:j?.profile.tenancy??prior?.tenancy,incognito:j?.incognito??prior?.incognito??false,message,step,at:Date.now(),running:false,reason,debug:j?snapshot(j):prior?.debug}});
   await chrome.action.setBadgeText({tabId:id,text:''}).catch(()=>{});
 }
-async function register(){const p=await chrome.permissions.getAll();const matches=(p.origins||[]).filter(x=>/^https:\/\/[^*]+\/\*$/.test(x)).filter(x=>!isBrokerOrigin(new URL(x).origin)||new URL(x).origin===BROKER_ORIGIN).map(x=>x.startsWith(ENTRY_ORIGIN+'/')?ENTRY_PATTERN:x);await chrome.scripting.unregisterContentScripts().catch(()=>{});if(matches.length)await chrome.scripting.registerContentScripts([{id:'oci-flow',matches,js:['engine.js','content.js'],runAt:'document_idle',allFrames:false,persistAcrossSessions:true}]);}
+async function register(){const p=await chrome.permissions.getAll();const matches=(p.origins||[]).filter(x=>/^https:\/\/[^*]+\/\*$/.test(x)).filter(x=>!isBrokerOrigin(new URL(x).origin)||new URL(x).origin===BROKER_ORIGIN).map(x=>x.startsWith(ENTRY_ORIGIN+'/')?ENTRY_PATTERN:x);for(const pattern of REGIONAL_DOMAIN_PATTERNS){if(await chrome.permissions.contains({origins:[pattern]}))matches.push(pattern);}await chrome.scripting.unregisterContentScripts().catch(()=>{});if(matches.length)await chrome.scripting.registerContentScripts([{id:'oci-flow',matches:[...new Set(matches)],js:['engine.js','content.js'],runAt:'document_idle',allFrames:false,persistAcrossSessions:true}]);}
 async function committed(d){
   if(d.frameId!==0||d.url==='about:blank'||d.url===chrome.runtime.getURL('launch.html'))return;
   const j=await getJob(d.tabId);if(!j)return;
@@ -55,10 +56,11 @@ async function inject(id,url,documentId){
   if(documentId&&j.documentId!==documentId)return;
   const origin=new URL(url).origin;
   if(isOAuthBridge(url))return;
-  if(isBrokerOrigin(origin)&&origin!==BROKER_ORIGIN)return;
-  // Regional OAuth brokers forward the browser themselves. Track their trusted
-  // navigation only; inject no code and provide them no credentials or metadata.
-  if(origin!==CONSOLE_ORIGIN&&origin!==BROKER_ORIGIN&&origin!==ENTRY_ORIGIN&&origin!==j.activeIdentity)return;
+  const regional=isBrokerOrigin(origin)&&origin!==BROKER_ORIGIN;
+  if(regional&&(!isRegionalDomainPage(url)||!j.tenancyVerified))return;
+  // Regional domain selection is an interactive UI. All other regional pages,
+  // including OAuth auto-forward documents, remain navigation-only.
+  if(!regional&&origin!==CONSOLE_ORIGIN&&origin!==BROKER_ORIGIN&&origin!==ENTRY_ORIGIN&&origin!==j.activeIdentity)return;
   if(origin===ENTRY_ORIGIN&&new URL(url).pathname!==ENTRY_PATH)return;
   const key=`${id}:${j.documentId}`;if(pendingInjections.has(key))return;
   trace(j,'injection-start');await putJob(id,j);
@@ -152,12 +154,22 @@ async function handle(m,s){
   if(s.id!==chrome.runtime.id||!s.tab?.id||s.frameId!==0)return {ok:false};
   const id=s.tab.id,j=await getJob(id);if(!j||!!s.tab.incognito!==!!j.incognito)return {ok:false};
   const origin=new URL(s.url).origin;
-  if(isOAuthBridge(s.url))return {ok:false};
+  const regional=isBrokerOrigin(origin)&&origin!==BROKER_ORIGIN;
+  if(!regional&&isOAuthBridge(s.url))return {ok:false};
   if((origin===ENTRY_ORIGIN&&new URL(s.url).pathname!==ENTRY_PATH)||origin!==j.activeOrigin||(j.documentId&&s.documentId!==j.documentId))return {ok:false};
-  if(isBrokerOrigin(origin)&&origin!==BROKER_ORIGIN)return {ok:false};
+  if(regional&&!j.tenancyVerified)return {ok:false};
+  if(regional){
+    // MessageSender.url can retain the content script's original URL after
+    // history.pushState. Confirm the live top-level document and path too.
+    const frame=await chrome.webNavigation.getFrame({tabId:id,frameId:0}).catch(()=>null);
+    if(!frame||frame.documentId!==s.documentId||!isRegionalDomainPage(frame.url)||new URL(frame.url).origin!==origin)return {ok:false};
+  }
   const broker=origin===BROKER_ORIGIN;
-  const identity=(!broker&&origin===j.activeIdentity)||(broker&&j.tenancyVerified&&!!(j.applied.tenancy||j.sessionVerified));
-  if(m.type==='CONTEXT'){if(j.contentDocumentId!==s.documentId){j.contentDocumentId=s.documentId;trace(j,'content-ready');await putJob(id,j);}return {ok:true,context:{tenancy:j.profile.tenancy,identityDomain:j.profile.identityDomain,selectors:j.profile.selectors,identity,broker,username:broker?j.profile.username:undefined,mode:j.mode,expiresAt:j.expiresAt,tenancyVerified:j.tenancyVerified,applied:Object.keys(j.applied)}};}
+  const identity=!regional&&((!broker&&origin===j.activeIdentity)||(broker&&j.tenancyVerified&&!!(j.applied.tenancy||j.sessionVerified)));
+  // A regional broker never receives username/password/bypass data, even when
+  // an imported profile lists that host as an identity origin.
+  if(regional&&['CLAIM','APPLIED'].includes(m.type)&&!['domainOpen','domainPick','domain'].includes(m.stage))return {ok:false};
+  if(m.type==='CONTEXT'){if(j.contentDocumentId!==s.documentId){j.contentDocumentId=s.documentId;trace(j,'content-ready');await putJob(id,j);}return {ok:true,context:{tenancy:j.profile.tenancy,identityDomain:j.profile.identityDomain,selectors:regional?Object.fromEntries(Object.entries(j.profile.selectors).filter(([k])=>['domain','submitDomain'].includes(k))):j.profile.selectors,identity,broker,domainOnly:regional,username:broker?j.profile.username:undefined,mode:j.mode,expiresAt:j.expiresAt,tenancyVerified:j.tenancyVerified,applied:Object.keys(j.applied)}};}
   if(m.type==='CLAIM'){
     if(!stages.includes(m.stage)||j.claims[m.stage]||(['sessionPick','newLogin'].includes(m.stage)&&!broker)||(['credentials','username','alternative','bypassChoice','bypass'].includes(m.stage)&&!identity))return {ok:false};
     j.claims[m.stage]=true;trace(j,'claim',{stage:m.stage});await putJob(id,j);
@@ -187,6 +199,9 @@ async function handle(m,s){
 chrome.runtime.onMessage.addListener((m,s,reply)=>{queue(s.tab?.id??'ui',()=>handle(m||{},s)).then(reply,e=>reply({ok:false,error:e instanceof UserError?e.message:'설정 파일과 OCI 접근 권한을 확인해 주세요.'})).catch(()=>{});return true;});
 chrome.webNavigation.onCommitted.addListener(d=>queue(d.tabId,()=>committed(d)).catch(()=>{}));
 chrome.webNavigation.onDOMContentLoaded.addListener(d=>{if(d.frameId===0)queue(d.tabId,()=>inject(d.tabId,d.url,d.documentId)).catch(()=>{});});
+// Oracle's regional app can render the chooser with history.replaceState,
+// retaining the OAuth document's original MessageSender.url and documentId.
+chrome.webNavigation.onHistoryStateUpdated.addListener(d=>{if(d.frameId===0&&isRegionalDomainPage(d.url))queue(d.tabId,()=>inject(d.tabId,d.url,d.documentId)).catch(()=>{});});
 chrome.tabs.onUpdated.addListener((id,c,t)=>{if(c.status==='complete')queue(id,()=>inject(id,t.url)).catch(()=>{});});
 chrome.tabs.onRemoved.addListener(id=>queue(id,async()=>{await chrome.storage.session.remove([`job:${id}`,`status:${id}`]);await chrome.alarms.clear(`expire:${id}`);await chrome.alarms.clear(`recover-session:${id}`);}).catch(()=>{}));
 chrome.alarms.onAlarm.addListener(a=>{if(a.name.startsWith('expire:'))queue(Number(a.name.slice(7)),()=>finish(Number(a.name.slice(7)),'시간이 지났습니다. 다시 로그인해 주세요.')).catch(()=>{});else if(a.name.startsWith('recover-session:'))queue(Number(a.name.slice(16)),()=>recoverSession(Number(a.name.slice(16)))).catch(()=>{});});
