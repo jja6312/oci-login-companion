@@ -23,5 +23,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: oci-companion-windows-installer
-          path: dist/windows-visual-r17/
+          path: dist/windows-visual-r18/
           retention-days: 7

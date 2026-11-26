@@ -1,0 +1,155 @@
+{
+  "version": "1.3.9",
+  "installerRevision": 18,
+  "features": {
+    "uiLocalShortcuts": {
+      "Alt+1": "personal storage",
+      "Alt+2": "bound team file or file setup if unbound"
+    },
+    "enterHintBelowTeamOpen": true,
+    "enterFromRecoveryOrSearchRequestsNativeAccessOnce": true,
+    "persistentGrantAutomaticallyReadOnOpen": true,
+    "newConsentAutomaticallyAccepted": false,
+    "focusAfterSuccess": "tenancy search",
+    "modalDraftsAndComposingInputPreserved": true,
+    "personalProfilesAndTeamHandleKeptSeparate": true
+  },
+  "freshChecks": 126,
+  "nodeChecks": 53,
+  "reports": {
+    "general": {
+      "count": 32,
+      "checks": [
+        "completed local setup has only add-account action and its shortcut",
+        "four-field editor saves leading-zero bypass code without website URL",
+        "bypass reveal is explicit and masked on reload",
+        "user-triggered copy shows confirmation",
+        "custom color and light mode persist independently of credentials",
+        "explicit export includes selected source",
+        "import conflict preserves account",
+        "explicit import update succeeds",
+        "tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console",
+        "normal login starts at official tenancy entry, replaces a remembered tenancy and avoids the console-first session picker",
+        "verified identity metadata is learned without storing a website field",
+        "same reusable admin bypass code succeeds on second login",
+        "custom domain picker, Korean alternate label and styled bypass radio complete",
+        "automatic scripts registered only for exact granted origins",
+        "SMS challenge with bypass link never receives static code",
+        "duplicate screen stops before secret entry",
+        "invalid screen stops before secret entry",
+        "unverified navigation to another identity receives no credentials",
+        "changed target metadata aborts login",
+        "fill-only populates credentials without submitting",
+        "content script cannot read local vault storage",
+        "expired job secrets are removed",
+        "connected team source is editable by default without an application checkbox",
+        "file handle persists and changed team bytes are reread",
+        "invalid team file never falls back to personal credentials",
+        "tenancy search selects matching accounts and handles no results",
+        "account editing updates the selected tenancy",
+        "explicit account deletion removes only selected account",
+        "vault fits desktop, tablet and 390px without horizontal overflow",
+        "appearance is shared between popup and options",
+        "actual 780x580 popup fits approved two-column layout",
+        "extension UI has no JavaScript or CSP console errors"
+      ],
+      "network": "OCI hostnames mapped to loopback-only TLS fixture; no real Oracle traffic",
+      "scope": "Linux Chromium; fixture permissions pregranted; OPFS file handles; real OCI, Windows native launch and Chrome permission dialog unverified"
+    },
+    "keyboard": {
+      "count": 16,
+      "checks": [
+        "Alt+2 without a bound team file opens file setup and preserves personal mode/data",
+        "Alt+2 selects the existing team binding directly, clears old search and focuses tenancy search",
+        "Alt+1 selects personal storage without disconnecting the team file or copying team credentials",
+        "source shortcuts preserve an open account draft without switching its save target",
+        "source shortcuts leave pasted bulk drafts and their original target untouched",
+        "a pending source switch blocks old-target edit/settings and duplicate source activation",
+        "denied Alt+2 consent stays on the selected team file with no personal/stale fallback and a focused recovery action",
+        "Enter hint is visibly below the Team file open button and exposed to assistive tools",
+        "IME composition and repeated Enter do not request permissions or start login",
+        "Enter on another focused control keeps that control action instead of requesting file access",
+        "Enter from search opens one consent request during the key gesture and blocks duplicate activation",
+        "successful Enter recovery rereads newest team bytes and focuses search without submitting an OCI login",
+        "selected source persists through reopening and an existing file grant opens automatically",
+        "background refresh never prompts; Enter also activates recovery from a non-control surface",
+        "Enter recovery and source shortcut hints fit 780px popup in both themes and390px options",
+        "new keyboard and recovery paths have no page JavaScript errors"
+      ],
+      "scope": "Disposable official Linux Brave158.1.100.58, real OPFS/IDB bytes and native DOM keyboard events; permission result controlled test-only; no browser preferences or customer data used; actual Windows native approvals/physical global shortcut, OneDrive cloud and real OCI login not exercised"
+    },
+    "permission": {
+      "count": 15,
+      "checks": [
+        "a real selected external handle reads without blanket browser file grants",
+        "closing the last extension page revokes the one-time grant; reopen shows the saved filename and inline recovery rather than zero accounts or a settings error",
+        "permission recovery receives keyboard focus so Enter restores from the same screen",
+        "focus and periodic refresh never repeatedly prompt for permissions",
+        "denial preserves the selected file, settings and personal list without silently importing cached team data",
+        "inline recovery fits popup and390px with an actionable button",
+        "one click requests read/write access directly during user activation and prevents duplicate requests",
+        "permission recovery rereads current file bytes immediately using the same binding without file selection or settings Apply",
+        "Enter to open the team file focuses tenancy search and accepts typing without another click",
+        "a per-file/per-origin Always permission record automatically restores access after browser restart; no global guards are enabled",
+        "persistent permission survives closing/reopening the popup and reads updated shared-file bytes",
+        "another full browser restart retains access and unrelated personal credentials",
+        "a team editor requests missing write access naturally on Edit and never writes after denial",
+        "a missing file is distinguished from a temporarily expired permission",
+        "permission and recovery paths have no JavaScript errors"
+      ],
+      "scope": "Official Brave1.100.58 Linux arm64; real external handle and real one-time revocation after all extension pages close, real file reads and browser restarts. Native approval result controlled only in disposable fixtures; persistent case seeds selected origin/file records to model the user Always choice, not global read/write grants. Production code never edits browser preferences or auto-accepts consent. Actual Windows native permission UI, user Brave build, OneDrive cloud and OCI login unverified."
+    },
+    "storage": {
+      "count": 10,
+      "checks": [
+        "storage has one combined file action and no separate regrant button; local mode keeps its apply label",
+        "choosing a file prepares a draft without requesting write access or changing the active source",
+        "denial requests read/write during the click gesture and preserves settings, binding and personal credentials",
+        "one approval applies the chosen file once, closes settings and focuses search without starting login",
+        "the approved file is validated again before applying and invalid bytes preserve the previous binding",
+        "closing settings while native permission is pending cancels the unapplied draft",
+        "closing settings during asynchronous validation also leaves the previous source intact",
+        "local apply needs no file permission and preserves both the personal list and saved team handle",
+        "a saved team file is reopened and applied through the same one-click action without picking it again",
+        "the combined action fits the real popup and390px options without horizontal overflow or JavaScript errors"
+      ],
+      "scope": "Disposable Linux Chromium; actual extension storage/IndexedDB/OPFS and keyboard focus. Native permission return values and chooser results controlled in fixture; actual Windows consent UI, OneDrive cloud and Prisma policies not exercised."
+    }
+  },
+  "samePath138Update": {
+    "previousPublicWindowsPayloadSHA256": "bcf68dcd2362961f12c7f6607bde3f2f706bdfa6587c91c086ef53cda3262c54",
+    "installer_execution": "Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI",
+    "existing_setup_skipped_and_team_editable_by_default": true,
+    "same_extension_id": true,
+    "accounts_theme_source_and_opfs_handle_preserved": true,
+    "prisma_guide_manager_copy_and_policy_notice": true,
+    "guide_copy_handlers_new_update_modes_and_three_viewports": true,
+    "guide_native_clipboard_changed": false
+  },
+  "visualReview": {
+    "popup780BothThemes": true,
+    "options390": true,
+    "enterBelowButton": true,
+    "incumbentVaultDesignPreserved": true,
+    "sourceShortcutsInExistingFooter": true
+  },
+  "windowsCI": {
+    "workflow": ".github/workflows/test.yml",
+    "requiredBeforePublish": true,
+    "nodeChecksExpected": 53,
+    "actualCMDAndPowerShellInstallerChecksExpected": 20
+  },
+  "unchanged": [
+    "OCI worker/content/engine and host permissions",
+    "personal/team credential schema",
+    "browser settings and native approval decisions",
+    "existing global Ctrl+Shift+Space command registration"
+  ],
+  "limits": [
+    "Shortcut keys work only while the extension UI is focused. The previous user Brave global shortcut losing its binding is still unconfirmed and is not claimed fixed.",
+    "Linux Chromium/Brave keyboard events and file lifecycle checks do not certify physical Windows hotkeys or Windows native consent selections.",
+    "Persistent permission tests model a selected origin/file Always record in disposable profiles only; product never edits browser preferences or fakes approval.",
+    "No customer OCI authentication, OneDrive cloud transport or actual Prisma organization policy executed.",
+    "No vault encryption/startup unlock feature added."
+  ]
+}

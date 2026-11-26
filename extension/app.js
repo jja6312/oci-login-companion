@@ -8,7 +8,7 @@ import {icon} from './lib/icons.js';
 import {parseBulkColumns,appendBulkProfiles,columnRows} from './lib/bulk.js';
 const $=id=>document.getElementById(id);
 for(const el of document.querySelectorAll('[data-icon]'))el.replaceChildren(icon(el.dataset.icon));
-let sourceSnapshot=null,editBase=null,deleteBase=null,pendingBase=null,draftHandle=null,savingAccount=false,storageApplying=false,loadVersion=0,sourceReading=0;
+let sourceSnapshot=null,editBase=null,deleteBase=null,pendingBase=null,draftHandle=null,savingAccount=false,storageApplying=false,sourceSwitching=false,loadVersion=0,sourceReading=0;
 let profiles=[],filtered=[],selectedId=null,sourceSettings,sourceLabel='',editing=null,pending=null,launching=false,job=null;
 let appearance=normalizeAppearance(),revealed=new Set(),toastTimer,messageTimer;
 let sourceError=null,accessEntry=null,accessBusy=false,automaticAccessTried=false,filePickerBlocked=false;
@@ -18,8 +18,8 @@ function message(text,error=false){clearTimeout(messageTimer);$('message').textC
 function settingsMessage(text,error=false){$('settings-message').textContent=text;$('settings-message').hidden=!text;$('settings-message').classList.toggle('error',error);}
 function guard(fn,settings=false){return async(...args)=>{try{await fn(...args);}catch(e){if(e.name==='AbortError')return;(settings?settingsMessage:message)(e.message||'작업을 완료하지 못했습니다.',true);}};}
 function resetSecrets(){revealed.clear();for(const b of document.querySelectorAll('[data-reveal]')){b.setAttribute('aria-pressed','false');b.replaceChildren(icon('Eye'));}}
-function canEdit(){return sourceSettings?.mode==='local'||sourceSnapshot?.writable===true;}
-function canRequestEdit(){return canEdit()||!!(sourceSnapshot&&sourceSettings?.mode==='file');}
+function canEdit(){return !sourceSwitching&&(sourceSettings?.mode==='local'||sourceSnapshot?.writable===true);}
+function canRequestEdit(){return !sourceSwitching&&(canEdit()||!!(sourceSnapshot&&sourceSettings?.mode==='file'));}
 async function restoreTeamAccess(mode='read',entry=accessEntry){
  if(!entry?.handle||accessBusy)return false;
  accessBusy=true;$('restore-team').disabled=true;$('restore-team').textContent='접근 확인 중…';
@@ -30,6 +30,7 @@ async function restoreTeamAccess(mode='read',entry=accessEntry){
  }finally{accessBusy=false;$('restore-team').disabled=false;$('restore-team').textContent='팀 파일 열기';}
 }
 async function ensureEditable(){
+ if(sourceSwitching)return false;
  if(canEdit())return true;
  if(!sourceSnapshot)return false;
  const entry=accessEntry;const allowed=await restoreTeamAccess('readwrite',entry);await load();
@@ -57,7 +58,7 @@ async function load({requestOnOpen=false}={}){
    }
   }
   if(version!==loadVersion)return;sourceSettings=settings;sourceError=error||null;sourceSnapshot=source||null;profiles=source?.profiles||[];sourceLabel=source?.label||accessEntry?.handle?.name||(settings?.mode==='file'?'팀 파일 연결 필요':'개인 저장소');message(error?.code==='TEAM_PERMISSION'?'':error?.message||'',!!error);
-  $('source-label').textContent=settings?.mode==='file'?'팀 파일':'개인 저장소';$('source').title=sourceLabel;
+  $('source-label').textContent=settings?.mode==='file'?'팀 파일':'개인 저장소';$('source').title=sourceLabel+' · Alt+1 개인 · Alt+2 팀';
   $('add').disabled=!canRequestEdit();$('add').title=canRequestEdit()?'계정 추가 (Alt + N)':'팀 파일 접근을 허용해 주세요.';
   resetSecrets();render();await updateStatus();
  }finally{sourceReading--;}
@@ -86,11 +87,11 @@ function renderDetails(){
   $('detail-domain').textContent=p.identityDomain||'지정하지 않음';$('detail-name').textContent=p.name;$('detail-source').textContent=sourceLabel;
   $('edit').disabled=!canRequestEdit();$('delete').hidden=!canRequestEdit();renderJob();
 }
-function renderJob(){const p=selected();const active=job?.profileId===p?.id?job:null;$('job').hidden=!active;$('job-status').textContent=active?.message||'';$('cancel').hidden=!active?.running;$('login').disabled=launching||!!active?.running;$('login-label').textContent=launching?'연결 중…':active?.running?'로그인 진행 중…':'로그인';}
+function renderJob(){const p=selected();const active=job?.profileId===p?.id?job:null;$('job').hidden=!active;$('job-status').textContent=active?.message||'';$('cancel').hidden=!active?.running;$('login').disabled=sourceSwitching||launching||!!active?.running;$('login-label').textContent=launching?'연결 중…':active?.running?'로그인 진행 중…':'로그인';}
 async function windowScope(){const w=await chrome.windows.getCurrent();return {windowId:w.id,incognito:w.incognito};}
 async function updateStatus(){try{const r=await chrome.runtime.sendMessage({type:'STATUS',...await windowScope()});job=r.items?.find(x=>x.profileId===selectedId)||null;renderJob();}catch{/* popup can close while the worker wakes */}}
 async function launch(mode){
-  if(launching)return;const p=selected();if(!p)return;if(job?.profileId===p.id&&job.running)return;
+  if(launching||sourceSwitching)return;const p=selected();if(!p)return;if(job?.profileId===p.id&&job.running)return;
   launching=true;renderJob();
   try{
     // Start both API calls during the original click/keypress gesture. Waiting
@@ -114,6 +115,32 @@ function focusAfterSourceChange(){
  if(sourceSnapshot&&!sourceError)$('search').focus({preventScroll:true});
  else if(sourceError?.code==='TEAM_PERMISSION')$('restore-team').focus({preventScroll:true});
 }
+async function switchSource(mode){
+ if(sourceSwitching||accessBusy||launching||document.querySelector('dialog[open]')||!sourceSettings)return;
+ if(mode==='file'&&(!accessEntry?.handle||sourceSettings.fileKind==='native')){
+  await openSettings('storage');document.querySelector('[name=mode][value=file]').checked=true;fileView();return;
+ }
+ sourceSwitching=true;renderJob();$('add').disabled=true;$('source').disabled=true;$('refresh').disabled=true;resetSecrets();
+ try{
+  // Invoke native consent within the original Alt+2 gesture. An existing grant
+  // resolves without a prompt; the browser/user still controls new approval.
+  const access=mode==='file'?restoreTeamAccess('readwrite',accessEntry):null;
+  if(access)await access;
+  const settings=await settingsGet();
+  await chrome.storage.local.set({settings:{...settings,mode}});
+  selectedId=null;$('search').value='';await load();
+ }finally{sourceSwitching=false;$('add').disabled=!canRequestEdit();$('source').disabled=false;$('refresh').disabled=false;render();focusAfterSourceChange();}
+}
+document.addEventListener('keydown',e=>{
+ if(e.isComposing||e.keyCode===229||document.querySelector('dialog[open]'))return;
+ if(e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&['Digit1','Digit2'].includes(e.code)){
+  e.preventDefault();e.stopPropagation();if(!e.repeat)guard(()=>switchSource(e.code==='Digit1'?'local':'file'))();return;
+ }
+ if(e.key!=='Enter'||e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||$('team-access').hidden)return;
+ const control=e.target.closest?.('button,a,input,select,textarea,[contenteditable]');
+ if(control&&!['search','restore-team'].includes(control.id))return;
+ e.preventDefault();e.stopPropagation();if(!e.repeat&&!accessBusy&&!sourceSwitching)$('restore-team').click();
+},true);
 $('restore-team').onclick=guard(async()=>{const entry=accessEntry;automaticAccessTried=true;const allowed=await restoreTeamAccess('readwrite',entry);await load();if(!allowed&&sourceError?.code==='TEAM_PERMISSION')$('team-access-note').textContent='브라우저 승인 창에서 접근을 허용해 주세요. 파일 연결은 그대로 유지됩니다.';else $('team-access-note').textContent='승인 창에서 “방문할 때마다 허용”을 선택하면 다음에도 자동으로 열립니다.';if(sourceSettings?.mode==='file')focusAfterSourceChange();});
 $('choose-team').onclick=guard(()=>openSettings('storage'));
 $('refresh').onclick=guard(load);
@@ -150,7 +177,7 @@ window.addEventListener('pagehide',()=>{bulkDraft=null;for(const t of document.q
 $('delete').onclick=guard(async()=>{const p=selected();if(!p||!await ensureEditable())return;deleteBase=await readSource();if(!deleteBase.writable)throw new Error('팀 파일 편집 권한을 확인해 주세요.');deleteBase={...deleteBase,deletingId:p.id};$('more-menu').hidden=true;$('delete-name').textContent=p.tenancy;$('delete-scope').textContent=deleteBase.target==='file'?'연결된 팀 파일에서 삭제합니다. 동기화 후 팀원에게도 반영됩니다.':'개인 저장소에서 이 계정을 삭제합니다.';$('delete-dialog').returnValue='';$('delete-dialog').showModal();});
 $('delete-dialog').addEventListener('close',guard(async()=>{const base=deleteBase;deleteBase=null;if($('delete-dialog').returnValue!=='delete'||!base)return;await writeList(base,base.profiles.filter(p=>p.id!==base.deletingId));await load();toast('계정을 삭제했습니다');}));
 function setSettingsTab(name){for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',String(b.dataset.tab===name));for(const s of document.querySelectorAll('[data-panel]'))s.hidden=s.dataset.panel!==name;settingsMessage('');}
-async function openSettings(tab='appearance'){await syncStorage();$('import-target').value=sourceSettings.mode;$('export-target').value=sourceSettings.mode;setSettingsTab(tab);syncAppearance();$('settings-dialog').showModal();}
+async function openSettings(tab='appearance'){if(sourceSwitching)return;await syncStorage();$('import-target').value=sourceSettings.mode;$('export-target').value=sourceSettings.mode;setSettingsTab(tab);syncAppearance();$('settings-dialog').showModal();}
 $('settings').onclick=guard(()=>openSettings());$('source').onclick=guard(()=>openSettings('storage'));$('close-settings').onclick=()=>$('settings-dialog').close();for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>setSettingsTab(b.dataset.tab);
 $('settings-dialog').addEventListener('close',()=>{pending=null;pendingBase=null;draftHandle=null;$('allow-updates').checked=false;$('import-file').value='';$('import-confirm').disabled=true;$('import-recheck').disabled=true;$('import-preview').textContent='';$('export-ack').checked=false;$('export').disabled=true;});
 function syncAppearance(){applyAppearance(appearance);$('theme-mode').value=appearance.mode;$('theme-accent').value=appearance.accent;$('accent-value').textContent=appearance.accent.toUpperCase();for(const b of document.querySelectorAll('.swatch'))b.setAttribute('aria-pressed',String(b.dataset.color===appearance.accent));}
@@ -246,9 +273,9 @@ $('setup-open-file').onclick=()=>setupAction(async()=>{
 });
 $('setup-access-settings').onclick=guard(()=>chrome.tabs.create({url:'chrome://flags/#file-system-access-api'}));
 $('setup-access-copy').onclick=guard(async()=>{await navigator.clipboard.writeText('brave://flags/#file-system-access-api');setupMessage('설정 주소를 복사했습니다. 주소창에 붙여 넣어 주세요.');});
-chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.onboarding?.newValue?.complete)syncSetup();if(area==='local'&&changes.appearance){appearance=normalizeAppearance(changes.appearance.newValue);syncAppearance();}if(area==='local'&&['profiles','settings','teamChangedAt'].some(k=>changes[k])&&!document.querySelector('dialog[open]'))load();if(area==='session'&&Object.keys(changes).some(k=>k.startsWith('status:')))updateStatus();});
+chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.onboarding?.newValue?.complete)syncSetup();if(area==='local'&&changes.appearance){appearance=normalizeAppearance(changes.appearance.newValue);syncAppearance();}if(area==='local'&&['profiles','settings','teamChangedAt'].some(k=>changes[k])&&!sourceSwitching&&!document.querySelector('dialog[open]'))load();if(area==='session'&&Object.keys(changes).some(k=>k.startsWith('status:')))updateStatus();});
 setInterval(()=>{if(!document.hidden)updateStatus();},1500);
-function refreshTeam(){if(!document.hidden&&sourceSettings?.mode==='file'&&!sourceReading&&!launching&&!document.querySelector('dialog[open]'))load();}
+function refreshTeam(){if(!document.hidden&&sourceSettings?.mode==='file'&&!sourceReading&&!sourceSwitching&&!launching&&!document.querySelector('dialog[open]'))load();}
 window.addEventListener('focus',refreshTeam);document.addEventListener('visibilitychange',refreshTeam);setInterval(refreshTeam,5000);
 window.addEventListener('pagehide',()=>{resetSecrets();$('account-form').reset();pending=null;});
 appearance=normalizeAppearance((await chrome.storage.local.get('appearance')).appearance);syncAppearance();await load({requestOnOpen:true});(sourceError?.code==='TEAM_PERMISSION'?$('restore-team'):$('search')).focus();await syncSetup();
