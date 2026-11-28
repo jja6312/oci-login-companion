@@ -20,14 +20,14 @@ async def main():
     report={}
     with tempfile.TemporaryDirectory(prefix='oci-profile-check-') as temporary:
         base=Path(temporary);local=base/'local';target=local/'Cloudragon/OCICompanion';ext=target/'extension'
-        data=(ROOT/'tests/fixtures/visual-v1.3.8-r17-payload.zip').read_bytes()
-        with zipfile.ZipFile(ROOT/'tests/fixtures/visual-v1.3.8-r17-payload.zip') as z:
+        data=(ROOT/'tests/fixtures/visual-v1.3.9-r18-payload.zip').read_bytes()
+        with zipfile.ZipFile(ROOT/'tests/fixtures/visual-v1.3.9-r18-payload.zip') as z:
             baseline=json.loads(z.read('payload/baseline.json'))
             for name in z.namelist():
                 if name.startswith('payload/extension/'):
                     file=target/name[8:];file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(z.read(name))
         (target/'.oci-companion-setup.json').write_text(json.dumps({'payloadSha256':hashlib.sha256(data).hexdigest()}))
-        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.3.8','payloadSha256':hashlib.sha256(data).hexdigest()}))
+        (target/'.oci-companion-update.json').write_text(json.dumps({'version':'1.3.9','payloadSha256':hashlib.sha256(data).hexdigest()}))
         fixture={'profiles':[{'id':'demo-profile','tenancy':'example-tenant','name':'데모 계정','username':'demo@example.invalid','password':'synthetic-value','bypassCode':'000123'}],
                  'appearance':{'mode':'light','accent':'#176b61'},'settings':{'mode':'file','fileKind':'picker','nativePath':'','teamWritable':False}}
         async with async_playwright() as p:
@@ -41,13 +41,13 @@ async def main():
             await page.evaluate("""async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('demo-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:p}));await w.close();await(await import('./lib/db.js')).handleSet(h);} """,fixture['profiles'])
             await context.close()
             env={**os.environ,'CLOUDRAGON_SETUP_LOCAL_DATA':str(local),'CLOUDRAGON_SETUP_NO_LAUNCH':'1','CLOUDRAGON_SETUP_NO_PAUSE':'1'}
-            cmd=ROOT/'dist/windows-visual-r18/Install.cmd'
+            cmd=ROOT/'dist/windows-visual-r19/Install.cmd'
             if os.name=='nt':
                 command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(cmd)+'""'
                 result=subprocess.run(command,env=env,capture_output=True,timeout=60)
                 report['installer_execution']='Actual Windows CMD/PowerShell'
             else:
-                payload=ROOT/'dist/windows-visual-r18/_support/payload.zip'
+                payload=ROOT/'dist/windows-visual-r19/_support/payload.zip'
                 code='. '+q(ROOT/'windows/setup-visual/Update.Core.ps1')+';. '+q(ROOT/'windows/setup-visual/Install.Core.ps1')+';Install-OrUpdateOciCompanion -Payload ([IO.File]::ReadAllBytes('+q(payload)+')) -ExpectedHash '+q(hashlib.sha256(payload.read_bytes()).hexdigest())+' -LocalData '+q(local)+' -NoLaunch|Out-Null'
                 result=subprocess.run([PS,'-NoLogo','-NoProfile','-NonInteractive','-Command',code],env=env,capture_output=True,timeout=60)
                 report['installer_execution']='Actual Linux PowerShell7 transaction; Windows CMD boundary separately checked by Windows CI'
@@ -55,7 +55,15 @@ async def main():
             context,second=await launch();assert first==second
             page=await context.new_page();await page.goto('chrome-extension://'+second+'/options.html')
             assert await page.evaluate('()=>chrome.storage.local.get(["profiles","appearance","settings"])')==fixture
-            await expect(page.locator('#detail-title')).to_have_text('example-tenant')
+            await expect(page.locator('#vault-title')).to_have_text('개인 금고 암호화')
+            for field in ['vault-password','vault-confirm']:await page.locator('#'+field).fill('personal update fixture passphrase')
+            await page.locator('#vault-unlock').click();await expect(page.locator('#vault-title')).to_have_text('팀 금고 암호화')
+            for field in ['vault-password','vault-confirm']:await page.locator('#'+field).fill('shared update fixture passphrase')
+            await page.locator('#vault-unlock').click();await expect(page.locator('#detail-title')).to_have_text('example-tenant')
+            assert 'profiles' not in await page.evaluate('chrome.storage.local.get(null)')
+            assert await page.evaluate("async()=>JSON.stringify((await chrome.storage.local.get(null))).includes('synthetic-value')")==False
+            report['legacy_personal_first_then_same_file_team_encryption_verified']=True
+            report['vault_passwords_not_stored_and_legacy_personal_key_removed']=True
             for _ in range(100):
                 if await page.evaluate('async()=> (await chrome.storage.local.get("onboarding")).onboarding?.complete===true'):break
                 await page.wait_for_timeout(50)
@@ -68,7 +76,7 @@ async def main():
             report['same_extension_id']=True;report['accounts_theme_source_and_opfs_handle_preserved']=True
             browser=await p.chromium.launch(**browser_options(),args=(['--no-sandbox'] if os.name!='nt' else []));context=await browser.new_context(viewport={'width':1180,'height':900})
             await context.add_init_script("Object.defineProperty(navigator,'clipboard',{value:{writeText:async(t)=>{window.copiedText=t}}});")
-            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r18/_support/Guide-Preview.html').as_uri())
+            page=await context.new_page();await page.goto((ROOT/'dist/windows-visual-r19/_support/Guide-Preview.html').as_uri())
             await expect(page.locator('h1')).to_have_text('빨간 박스를 따라 설정하세요.')
             await page.locator('#copy-path').click();assert await page.evaluate('window.copiedText')==r'%LOCALAPPDATA%\Cloudragon\OCICompanion\extension'
             await page.locator('[data-scheme=brave]').click();await page.locator('#copy-manager').click();assert await page.evaluate('window.copiedText')=='brave://extensions'
@@ -84,7 +92,7 @@ async def main():
             report['guide_copy_handlers_new_update_modes_and_three_viewports']=True
             report['guide_native_clipboard_changed']=False
             await browser.close()
-    out=ROOT/'work/visual-validation.json';out.parent.mkdir(exist_ok=True);out.write_text(json.dumps(report,indent=2)+'\n')
+    out=ROOT/'work/v2.0.0/profile-update-proof.json';out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report))
 
 

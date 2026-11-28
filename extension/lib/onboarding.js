@@ -1,5 +1,5 @@
 import {handleEntryGet,handleSet} from './db.js';
-import {MAX_BYTES,parseConfig} from './model.js';
+import {validateTeamFile} from './sources.js';
 const lock='oci-companion-onboarding';
 const completed=()=>({complete:true,version:1});
 async function state(){
@@ -21,8 +21,7 @@ export function finishOnboarding(mode,handle){return navigator.locks.request(loc
  if(!['local','file'].includes(mode))throw new Error('저장 위치를 선택해 주세요.');
  if(mode==='file'){
   if(!handle)throw new Error('팀 JSON 파일을 선택해 주세요.');
-  const file=await handle.getFile();if(file.size>MAX_BYTES)throw new Error('설정 파일은 512 KiB 이하여야 합니다.');
-  parseConfig(await file.text());
+  await validateTeamFile(handle);
   const old=await handleEntryGet();await handleSet(handle);
   try{await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker'},onboarding:completed()});}
   catch(e){await handleSet(old.handle);throw e;}

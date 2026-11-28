@@ -11,7 +11,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 PS=str(Path(os.environ.get('WINDIR','C:/Windows'))/'System32/WindowsPowerShell/v1.0/powershell.exe')
-BUILD=ROOT/'dist/windows-visual-r18'
+BUILD=ROOT/'dist/windows-visual-r19'
 
 
 def q(p):return "'"+str(p).replace("'","''")+"'"
@@ -57,7 +57,7 @@ class VisualSetupTests(unittest.TestCase):
     def test_previous_visual_fresh_install_can_upgrade_without_reset(self):
         self.previous_r7('visual-v1.2.3-r8-payload.zip',fresh_visual=True)
         result=self.call();self.assertTrue(result['ok'],result)
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
 
     def test_published_130_r9_fresh_install_upgrades_and_keeps_receipt_backup(self):
         self.previous_r7('visual-v1.3.0-r9-payload.zip','1.3.0',fresh_visual=True)
@@ -65,7 +65,7 @@ class VisualSetupTests(unittest.TestCase):
         result=self.call();self.assertTrue(result['ok'],result);backup=Path(result['result']['backupPath'])
         self.assertEqual((backup/'app.js').read_bytes(),before);self.assertEqual(Path(str(backup)+'.json').read_bytes(),receipt)
         self.assertEqual((self.root/'extension/app.js').read_bytes(),(ROOT/'extension/app.js').read_bytes())
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
 
     def test_local_131_r9_update_is_accepted_without_resetting_files(self):
         self.previous_r7('managed-v1.3.0-r8-payload.zip','1.3.0')
@@ -106,7 +106,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -118,7 +118,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -130,7 +130,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -142,7 +142,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -154,7 +154,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -166,7 +166,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -178,7 +178,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -190,7 +190,19 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
+        receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
+        self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
+
+    def test_actual_cmd_upgrades_published_139_r18(self):
+        self.previous_r7('visual-v1.3.9-r18-payload.zip','1.3.9',fresh_visual=True)
+        before=(self.root/'.oci-companion-update.json').read_bytes()
+        file=self.base/'Install.cmd';file.write_bytes((BUILD/'Install.cmd').read_bytes())
+        env={**os.environ,'CLOUDRAGON_SETUP_LOCAL_DATA':str(self.local),'CLOUDRAGON_SETUP_NO_LAUNCH':'1','CLOUDRAGON_SETUP_NO_PAUSE':'1'}
+        command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
+        result=subprocess.run(command,env=env,capture_output=True,timeout=60)
+        self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
         receipt=json.loads((self.root/'.oci-companion-update.json').read_text(encoding='utf-8'))
         self.assertEqual(Path(receipt['backupPath']+'.json').read_bytes(),before)
 
@@ -209,7 +221,7 @@ class VisualSetupTests(unittest.TestCase):
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
         self.assertEqual((self.root/'extension/app.js').read_bytes(),(ROOT/'extension/app.js').read_bytes())
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
 
     def test_launch_opens_only_guide_without_explorer(self):
         result=self.call(launch=True);self.assertTrue(result['ok'],result)
@@ -230,7 +242,7 @@ class VisualSetupTests(unittest.TestCase):
         command='"'+str(Path(os.environ['WINDIR'])/'System32/cmd.exe')+'" /d /s /c ""'+str(file)+'""'
         result=subprocess.run(command,env=env,capture_output=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout.decode(errors='replace')+result.stderr.decode(errors='replace'))
-        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'1.3.9')
+        self.assertEqual(json.loads((self.root/'extension/manifest.json').read_text(encoding='utf-8'))['version'],'2.0.0')
 
 
 if __name__=='__main__':unittest.main()

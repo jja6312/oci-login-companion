@@ -1,6 +1,6 @@
-# OCI Companion 1.3.9 — Android Brave Nightly 시험 설치
+# OCI Companion 2.0.0 — Android Brave Nightly 시험 설치2
 
-2026-11-28 기준. 기존 PC용 1.3.9와 같은 확장 코드입니다.
+2026-11-28 기준. 기존 PC용 2.0.0와 같은 확장 코드입니다.
 휴대폰 설치와 실제 OCI 인증은 아직 실기기에서 검증하지 않았습니다.
 일반 Brave와 Windows Install.cmd를 위한 모바일 설치 파일은 아닙니다.
 
@@ -22,9 +22,9 @@ Brave Android Extensions를 Enabled로 바꾸고 Relaunch를 누릅니다.
 ## 2. 확장 파일 설치
 
 시험 배포:
-https://github.com/jja6312/oci-login-companion/releases/tag/android-nightly-v1.3.9-test1
+https://github.com/jja6312/oci-login-companion/releases/tag/android-nightly-v2.0.0-test2
 
-OCI-Companion-1.3.9-Android-Nightly-test1.crx를 Nightly에서 다운로드합니다.
+OCI-Companion-2.0.0-Android-Nightly-test2.crx를 Nightly에서 다운로드합니다.
 이 파일은 APK나 Windows 실행 파일이 아닌 서명된 브라우저 확장입니다.
 
 Nightly 주소창에 brave://extensions 를 입력합니다.
@@ -54,10 +54,10 @@ chrome-extension://{{EXTENSION_ID}}/options.html
 
 ## 4. 계정과 로그인
 
-처음에는 로컬 저장소를 선택해 가상 계정으로 추가와 검색부터 확인하세요.
+처음에는 로컬 저장소와 개인 금고 암호를 설정해 가상 계정으로 추가와 검색부터 확인하세요.
 PC 개인 목록은 자동으로 스마트폰에 동기화되지 않습니다.
 필요하면 PC의 설정 → 데이터에서 개인 목록을 내보내고 휴대폰에서 가져올 수 있습니다.
-내보내기 JSON에는 암호와 Bypass Code가 포함되므로 본인이 관리하는 경로로 전달하세요.
+내보내기는 암호화된 .vault.json이며 원래 금고 암호로 열 수 있습니다. 암호는 파일과 별도로 보관하세요. 구버전 평문 JSON을 가져오면 원본 파일은 그대로 남습니다.
 
 목록에서 계정을 선택하고 로그인 버튼을 누릅니다. 최초 사이트 접근 권한은 직접 승인합니다.
 계정은 Oracle 공식 테넌시 입력 페이지부터 같은 Nightly의 새 탭에서 로그인합니다.
@@ -76,11 +76,11 @@ API가 제공되는지와 OneDrive 문서를 지속적으로 읽고 쓸 수 있�
 ## 검증 범위
 
 CRX3는 Chromium 공식 패키저로 생성하고 별도 OpenSSL로 서명을 검증합니다.
-CRX의 ZIP 본문과 배포 ZIP은 같으며 모든 실행 파일은 Git의 검토된 1.3.9 바이트와 대조합니다.
+CRX의 ZIP 본문과 배포 ZIP은 같으며 모든 실행 파일은 PC용 2.0.0의 검토된 바이트와 대조합니다.
 고객 계정·개인 금고·서명 개인키는 배포 파일에 포함하지 않습니다.
 PC 금고·설정·설치 경로·정식 Install.cmd 배포를 변경하지 않습니다.
 서명은 배포 파일의 출처와 무결성을 위한 것이며 금고 암호화를 의미하지 않습니다.
-개인/팀 목록의 저장 암호화와 시작 잠금 해제는 현재 구현되어 있지 않습니다.
+개인/팀 목록은 암호화 금고입니다. 처음 암호를 설정하고 브라우저 재시작·5분 미사용 후에는 다시 잠금 해제합니다. 비밀번호와 복호화 키는 디스크에 저장하지 않습니다. 복호화 키는 유효한 동안 브라우저 메모리(chrome.storage.session)에만 보관합니다. 암호를 분실하면 복구할 수 없습니다. 이전 평문 목록은 금고 화면에서 먼저 이전해야 합니다.
 
 Android 실기기에서의 설치, 권한 창, 창/탭 API, OCI 로그인과 OneDrive 동기화는
 확인 전까지 지원 완료라고 보고하지 않습니다. 모바일 폭의 데스크톱 브라우저 검사는

@@ -1,11 +1,12 @@
 from fixture_permissions import auth_permissions
+from fixture_vault import seed_personal,seed_team,PASSWORD as FIXTURE_PASSWORD
 """Offline integration of shipped extension. Oracle hostnames use a loopback TLS fixture.
 Fixture copy pregrants OCI permissions; native Chrome approval UI is not automated.
 """
 import asyncio,json,pathlib,shutil,re,ssl,socket,subprocess,sys,time,os
 from types import SimpleNamespace
 from playwright.async_api import async_playwright,expect
-ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work'/os.environ.get('OCI_TEST_RELEASE','v1.3.0');WORK.mkdir(exist_ok=True)
+ROOT=pathlib.Path(__file__).resolve().parents[1];WORK=ROOT/'work'/os.environ.get('OCI_TEST_RELEASE','v1.3.0');WORK.mkdir(parents=True,exist_ok=True)
 CHROME='/home/codex/.cache/ms-playwright/chromium-1243/chrome-linux-arm64/chrome'
 IDENTITY='https://idcs-fixture.identity.oraclecloud.com';CONSOLE='https://cloud.oracle.com';BROKER='https://login.oci.oraclecloud.com';ENTRY='https://www.oracle.com';REGIONAL='https://login.us-ashburn-1.oraclecloud.com';REGIONAL_OCI='https://login.us-ashburn-1.oci.oraclecloud.com';OTHER_ROUTE='https://api.us-ashburn-1.oraclecloud.com'
 PROFILE={'id':'fixture-seoul','name':'서울 운영 계정','tenancy':'cloudragon-prod','identityDomain':'Default','username':'operator@example.invalid','password':'fixture-password','bypassCode':'000123','identityOrigins':[],'selectors':{}}
@@ -159,13 +160,14 @@ async def main():
   worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker');await worker.evaluate("chrome.storage.local.set({onboarding:{complete:true,version:1}})");eid=worker.url.split('/')[2]
   page=await ctx.new_page();page.on('pageerror',lambda e:errors.append(str(e)));page.on('console',lambda m:errors.append(m.text) if m.type=='error' else None)
   await page.goto(f'chrome-extension://{eid}/options.html');await page.locator('#add').wait_for();await page.wait_for_timeout(300)
+  await seed_personal(page,[]);await page.locator('#refresh').click()
   if '--session-only' in sys.argv:
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)
+   await seed_personal(page,[PROFILE])
    await worker.evaluate("()=>{globalThis.fixtureObservedKinds=new Set();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='session')for(const [key,v] of Object.entries(changes))if(key.startsWith('job:'))for(const event of v.newValue?.trace||[])fixtureObservedKinds.add(event.kind);});}")
    async def session_start():
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
-    r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE);assert r['ok'],r;return r['tabId']
+    r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE);assert r['ok'],r;return r['tabId']
    async def session_end(tid):
     for _ in range(240):
      st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
@@ -221,7 +223,7 @@ async def main():
    await ctx.close();server.close();await server.wait_closed();return
   if '--team-only' in sys.argv:
    await page.evaluate('''async(p)=>{const {handleSet}=await import('./lib/db.js');const h=await(await navigator.storage.getDirectory()).getFileHandle('worker-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',PROFILE)
-   async def launch_team():return await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE)
+   async def launch_team():return await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE)
    async def end_team(tid):
     for _ in range(200):
      st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
@@ -242,39 +244,40 @@ async def main():
    await expect(page.locator('#quick-presets .swatch')).to_have_count(6)
    await page.locator('#quick-presets [data-color="#65a8ff"]').click();await page.reload();await page.locator('#bulk-open').wait_for()
    assert await page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()")=='#65a8ff';assert not await page.locator('#settings-dialog').is_visible();ok('six circular preset colors change and persist from main UI without opening settings')
-   await page.locator('#add').click();assert await page.locator('#p-name').is_visible();await page.locator('#cancel-edit').click();ok('customer alias is a basic account field outside advanced settings')
+   await page.locator('#add').click();await expect(page.locator('#p-name')).to_be_visible();await page.locator('#cancel-edit').click();ok('customer alias is a basic account field outside advanced settings')
    await page.locator('#bulk-open').click()
    vals={'tenancy':'\n'.join(['cloudragon-prod']+['fixture-tenant-'+str(i) for i in range(1,25)]),'username':'\n'.join(['operator@example.invalid']*25),'password':'\n'.join(['fixture-password']*25),'bypassCode':'\n'.join(['000123']*25),'name':'\n'.join(['가상고객 운영']+['가상고객 '+str(i) for i in range(1,25)]),'identityDomain':''}
    for k,v in vals.items():await page.locator('#bulk-'+k).fill(v+'\n' if v else '')
-   await page.locator('#bulk-password').fill('too-few');await page.locator('#bulk-preview').click();assert '행' in await page.locator('#bulk-error').inner_text();assert await page.locator('#bulk-save').is_disabled();assert not (await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"));ok('mismatched pasted columns block entire registration without saving any account')
+   await page.locator('#bulk-password').fill('too-few');await page.locator('#bulk-preview').click();assert '행' in await page.locator('#bulk-error').inner_text();assert await page.locator('#bulk-save').is_disabled();assert not (await page.evaluate("async()=> (await(await import('./lib/sources.js')).readList('local')).profiles"));ok('mismatched pasted columns block entire registration without saving any account')
    broken=['fixture-password']*25;broken[6]='';await page.locator('#bulk-password').fill('\n'.join(broken)+'\n');await page.locator('#bulk-preview').click();assert '7행' in await page.locator('#bulk-error').inner_text();ok('empty password cell identifies its row and never shifts the following credentials')
    await page.locator('#bulk-password').fill(vals['password']+'\n');await page.locator('#bulk-preview').click();await expect(page.locator('#bulk-rows tr')).to_have_count(25)
    review=await page.locator('#bulk-review').inner_text();assert 'fixture-password' not in review and '000123' not in review;assert await page.locator('#bulk-password').evaluate("e=>getComputedStyle(e).webkitTextSecurity")=='disc';ok('25-row preview preserves order and aliases while masking secrets and omitting them from table')
    await page.screenshot(path=str(shots/'bulk-desktop.png'))
    await page.locator('#bulk-name').fill(vals['name']+'\n');assert await page.locator('#bulk-save').is_disabled();await page.locator('#bulk-preview').click();await page.locator('#bulk-save').click();await expect(page.locator('#bulk-dialog')).not_to_be_visible();await expect(page.locator('.account-row')).to_have_count(25)
-   saved=await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles");assert len(saved)==25 and saved[0]['bypassCode']=='000123' and saved[24]['name']=='가상고객 24';assert await page.locator('#bulk-password').input_value()=='';ok('one confirmation appends all25 accounts atomically and clears pasted credentials afterward')
+   saved=await page.evaluate("async()=> (await(await import('./lib/sources.js')).readList('local')).profiles");assert len(saved)==25 and saved[0]['bypassCode']=='000123' and saved[24]['name']=='가상고객 24';assert await page.locator('#bulk-password').input_value()=='';ok('one confirmation appends all25 accounts atomically and clears pasted credentials afterward')
    await page.locator('#search').fill('가상고객 24');await expect(page.locator('.account-row')).to_have_count(1);assert await page.locator('#detail-title').inner_text()=='fixture-tenant-24';await page.reload();await page.locator('#search').fill('가상고객 운영');await expect(page.locator('.account-row')).to_have_count(1);assert '가상고객 운영' in await page.locator('#detail-subtitle').inner_text();ok('customer alias search and display persist through reload with legacy name schema')
    await page.locator('#edit').click();await page.locator('#p-name').fill('가상고객 변경');await page.locator('#account-form button[type=submit]').click();await page.locator('#search').fill('가상고객 변경');await expect(page.locator('.account-row')).to_have_count(1);ok('editing customer alias updates subsequent search without changing authentication target')
    await page.locator('#bulk-open').click()
    for k in ['tenancy','username','password','bypassCode']:await page.locator('#bulk-'+k).fill(vals[k].split('\n')[0])
-   await page.locator('#bulk-preview').click();assert '중복' in await page.locator('#bulk-error').inner_text();assert await page.locator('#bulk-save').is_disabled();await page.keyboard.press('Escape');assert not await page.locator('#bulk-dialog').is_visible();assert await page.locator('#bulk-bypassCode').input_value()=='';ok('duplicate target is rejected and Escape clears the whole unsaved batch')
-   await page.evaluate("""async()=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('bulk-write-denied.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[]}));await w.close();await(await import('./lib/db.js')).handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker'}})}""")
-   await worker.evaluate("()=>{globalThis.fixturePermissionQuery=FileSystemFileHandle.prototype.queryPermission;FileSystemFileHandle.prototype.queryPermission=function(x){return x?.mode==='readwrite'?Promise.resolve('denied'):fixturePermissionQuery.call(this,x);};}");denied=await page.evaluate('async(p)=>{const s=await import("./lib/sources.js");return chrome.runtime.sendMessage({type:"BULK_ADD",source:s.sourceRef(await s.readSource()),profiles:[p]});}',PROFILE);await worker.evaluate("()=>{FileSystemFileHandle.prototype.queryPermission=fixturePermissionQuery;}");assert not denied['ok'] and '팀' in denied['error'];assert len(await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
+   await page.locator('#bulk-preview').click();await expect(page.locator('#bulk-error')).to_contain_text('중복');assert await page.locator('#bulk-save').is_disabled();await page.keyboard.press('Escape');assert not await page.locator('#bulk-dialog').is_visible();assert await page.locator('#bulk-bypassCode').input_value()=='';ok('duplicate target is rejected and Escape clears the whole unsaved batch')
+   await seed_team(page,[])
+   await worker.evaluate("()=>{globalThis.fixturePermissionQuery=FileSystemFileHandle.prototype.queryPermission;FileSystemFileHandle.prototype.queryPermission=function(x){return x?.mode==='readwrite'?Promise.resolve('denied'):fixturePermissionQuery.call(this,x);};}");denied=await page.evaluate('async(p)=>{const s=await import("./lib/sources.js");return chrome.runtime.sendMessage({type:"BULK_ADD",source:s.secureSourceRef(await s.readSource()),profiles:[p]});}',PROFILE);await worker.evaluate("()=>{FileSystemFileHandle.prototype.queryPermission=fixturePermissionQuery;}");assert not denied['ok'] and '팀' in denied['error'];assert len(await page.evaluate("async()=> (await(await import('./lib/sources.js')).readList('local')).profiles"))==25;ok('worker rejects bulk writes when active team source is read-only')
    await page.evaluate("chrome.storage.local.set({settings:{mode:'local',fileKind:'picker',nativePath:''}})")
    # Enable private access through the real extension settings in this disposable browser.
    settings=await ctx.new_page();await settings.goto('chrome://extensions/?id='+eid);await settings.locator('#allow-incognito').click()
    # COMMAND_LINE test extensions unload when this preference changes; relaunch
    # the same disposable profile so Chromium loads the granted extension again.
    await ctx.close();ctx=await launch_browser();page=await ctx.new_page();await page.goto(f'chrome-extension://{eid}/options.html');await page.locator('#bulk-open').wait_for();worker=ctx.service_workers[0] if ctx.service_workers else await ctx.wait_for_event('serviceworker');assert await page.evaluate('chrome.extension.isAllowedIncognitoAccess()')
+   await seed_personal(page,saved);await page.reload();await expect(page.locator('.account-row')).to_have_count(25)
    normal_scope=await page.evaluate('async()=>{const w=await chrome.windows.getCurrent();return {windowId:w.id,incognito:w.incognito};}')
    normal=await ctx.new_page();await normal.goto(CONSOLE+'/done');await normal.evaluate("document.cookie='fixture-normal-only=normal; path=/; secure'")
    private=await page.evaluate('chrome.windows.create({incognito:true,url:"about:blank",focused:false})');assert private['incognito'];scope={'windowId':private['id'],'incognito':True}
    await page.evaluate('(id)=>chrome.windows.update(id,{focused:true})',normal_scope['windowId'])
-   await page.evaluate('''async(p)=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('private-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await(await import('./lib/db.js')).handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',PROFILE)
+   await seed_team(page,[PROFILE])
    before_meta=await page.evaluate('chrome.storage.local.get(["identityBindings","lastUsed"])')
    scenario='regional-domain-ko'
    entry_begin=len(requests)
-   r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;tid=r['tabId']
+   r=await page.evaluate('async(x)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;tid=r['tabId']
    for _ in range(260):
     st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
     if st and not st['running']:break
@@ -282,7 +285,7 @@ async def main():
    assert st['step']=='complete',{'status':st,'requests':requests[-12:]}
    target=await page.evaluate('(id)=>chrome.tabs.get(id)',tid);assert target['windowId']==private['id'] and target['incognito'] and target['url']==CONSOLE+'/done';assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:];ok('real Chromium private window passes regional domain selection and completes password/bypass in exact initiating private window')
    scenario='session-recovery-layout'
-   r=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;recovered=r['tabId']
+   r=await page.evaluate('async(x)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert r['ok'],r;recovered=r['tabId']
    for _ in range(260):
     recovery=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',recovered)
     if recovery and not recovery['running']:break
@@ -294,7 +297,7 @@ async def main():
    assert await page.evaluate('chrome.storage.local.get(["identityBindings","lastUsed"])')==before_meta;ok('private login reads shared vault/team handle but does not persist learned identity or last-used browsing metadata')
    visible=await page.evaluate('(s)=>chrome.runtime.sendMessage({type:"STATUS",...s})',normal_scope);hidden=await page.evaluate('(s)=>chrome.runtime.sendMessage({type:"STATUS",...s})',scope);assert not any(x['tabId']==tid for x in visible['items']) and any(x['tabId']==tid for x in hidden['items']);ok('private job status is excluded from normal-window UI')
    await page.evaluate('(id)=>chrome.windows.remove(id)',private['id']);before_tabs=await page.evaluate('chrome.tabs.query({})')
-   missing=await page.evaluate('(x)=>chrome.runtime.sendMessage({type:"START",profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert not missing['ok'];assert len(await page.evaluate('chrome.tabs.query({})'))==len(before_tabs);ok('closed private origin window fails without opening a replacement normal tab')
+   missing=await page.evaluate('async(x)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:"login",...x.scope})',{'p':PROFILE,'scope':scope});assert not missing['ok'];assert len(await page.evaluate('chrome.tabs.query({})'))==len(before_tabs);ok('closed private origin window fails without opening a replacement normal tab')
    await page.evaluate("chrome.storage.local.set({settings:{mode:'local',fileKind:'picker',nativePath:''}})");await page.locator('#refresh').click();await page.locator('#search').fill('가상고객 변경')
    await page.screenshot(path=str(shots/'vault-quick-palette.png'))
    for width in [768,390]:
@@ -302,23 +305,23 @@ async def main():
    await page.set_viewport_size({'width':780,'height':580});popup=await ctx.new_page();await popup.set_viewport_size({'width':780,'height':580});await popup.goto(f'chrome-extension://{eid}/popup.html');await popup.locator('#quick-presets .swatch').first.wait_for();assert not await popup.evaluate('document.documentElement.scrollHeight>innerHeight');ok('bulk dialog fits desktop/tablet/mobile and quick palette fits actual780x580 popup')
    for count in [25,300]:
     sample=saved if count==25 else [{**PROFILE,'id':'scroll-'+str(i),'tenancy':'fixture-'+str(i),'name':'가상고객 '+str(i)} for i in range(count)]
-    await popup.evaluate('(ps)=>chrome.storage.local.set({profiles:ps})',sample);await popup.locator('#refresh').click();await popup.locator('#search').fill('');await expect(popup.locator('.account-row')).to_have_count(count)
+    await seed_personal(popup,sample);await popup.locator('#refresh').click();await popup.locator('#search').fill('');await expect(popup.locator('.account-row')).to_have_count(count)
     dims=await popup.evaluate('''()=>{const list=document.querySelector('#accounts'),f=document.querySelector('.sidebar-footer');return {height:list.clientHeight,scroll:list.scrollHeight,footer:f.getBoundingClientRect().bottom};}''');assert 100<dims['height']<580 and dims['scroll']>dims['height'] and dims['footer']<=580,dims
     await popup.locator('#search').press('ArrowUp');last=popup.locator('.account-row').last;assert await last.get_attribute('aria-selected')=='true';box=await last.bounding_box();area=await popup.locator('#accounts').bounding_box();assert box['y']>=area['y']-1 and box['y']+box['height']<=area['y']+area['height']+1
     await popup.locator('#search').press('ArrowDown')
-   await popup.evaluate('(ps)=>chrome.storage.local.set({profiles:ps})',saved);await popup.locator('#refresh').click();await popup.screenshot(path=str(shots/'popup-quick-palette.png'));ok('25 and300 account lists scroll within popup, retain footer, and reach last account by keyboard')
+   await seed_personal(popup,saved);await popup.locator('#refresh').click();await popup.screenshot(path=str(shots/'popup-quick-palette.png'));ok('25 and300 account lists scroll within popup, retain footer, and reach last account by keyboard')
    assert not errors,errors
    (WORK/'features-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'network':'Loopback-only TLS fixtures; real disposable Chromium normal/private windows and cookie jars','scope':'Linux Chromium; incognito toggle enabled on disposable browser settings; API START uses originating window snapshot; actual Windows/Brave shortcut popup remains unverified'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
   if '--injection-only' in sys.argv:
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)
+   await seed_personal(page,[PROFILE])
    await worker.evaluate("()=>{globalThis.realExec=chrome.scripting.executeScript;globalThis.realRegister=chrome.scripting.registerContentScripts;globalThis.realContains=chrome.permissions.contains;}")
    for fault in ['stale','transient','permission','persistent']:
-    await page.evaluate('chrome.storage.local.remove("identityBindings")')
+    await page.evaluate('chrome.storage.session.remove("identityBindings")')
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
     await worker.evaluate('''(fault)=>{globalThis.faultCount=0;chrome.scripting.registerContentScripts=async()=>{};chrome.permissions.contains=q=>fault==='permission'&&q.origins?.length===1?Promise.resolve(false):realContains(q);chrome.scripting.executeScript=async(q)=>{if(q.files&&(fault==='permission'||fault==='persistent'||faultCount===0)){faultCount++;if(fault==='stale'){const done=new Promise(ok=>{const listener=d=>{if(d.tabId===q.target.tabId&&d.frameId===0&&d.url==='https://cloud.oracle.com/retry-entry'){chrome.webNavigation.onCommitted.removeListener(listener);ok();}};chrome.webNavigation.onCommitted.addListener(listener);});await chrome.tabs.update(q.target.tabId,{url:'https://cloud.oracle.com/retry-entry'});await done;}throw new Error('Controlled injection failure');}return realExec(q);};}''',fault)
-    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;tid=r['tabId']
+    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;tid=r['tabId']
     for _ in range(180):
      st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
      if st and not st['running']:break
@@ -331,12 +334,12 @@ async def main():
    (WORK/'injection-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Disposable Chromium extension with deterministic API failure hooks; stale document, transient, permission-revoked and persistent same-document cases'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
   if '--mfa-only' in sys.argv:
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)
+   await seed_personal(page,[PROFILE])
    for scenario in ['mfa-icon','mfa-open','mfa-jet','mfa-missing-marker','mfa-other-factor','mfa-disabled','mfa-duplicate-choice','mfa-duplicate-input']:
-    await page.evaluate('chrome.storage.local.remove("identityBindings")')
+    await page.evaluate('chrome.storage.session.remove("identityBindings")')
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
-    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;tid=r['tabId']
+    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;tid=r['tabId']
     for _ in range(160):
      tab=await page.evaluate('(id)=>chrome.tabs.get(id)',tid)
      if tab.get('url','').startswith(IDENTITY+'/mfa') or tab.get('url','').startswith(CONSOLE+'/done'):break
@@ -357,12 +360,12 @@ async def main():
    (WORK/'mfa-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium shipped extension, loopback TLS, same-document push→factor→generic JET-shaped bypass view; real public JET template proof is separate'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
   if '--regional-only' in sys.argv:
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE);await page.locator('#refresh').click()
+   await seed_personal(page,[PROFILE]);await page.locator('#refresh').click()
    async def start_regional():
-    await page.evaluate('chrome.storage.local.remove("identityBindings")')
+    await page.evaluate('chrome.storage.session.remove("identityBindings")')
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
-    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;return r['tabId']
+    r=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"});}',PROFILE);assert r['ok'],r;return r['tabId']
    async def wait_regional(tid):
     for _ in range(160):
      st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
@@ -372,7 +375,7 @@ async def main():
    for scenario in ['regional-forward','regional-oci','regional-unverified','regional-other']:
     tid=await start_regional();st=await wait_regional(tid)
     if scenario in ['regional-forward','regional-oci']:
-     assert st['step']=='complete',st;bindings=await page.evaluate('chrome.storage.local.get("identityBindings")');assert list(bindings['identityBindings'].values())[0]['origin']==IDENTITY;ok(scenario+' tracks global→regional→IDCS and completes without binding broker as identity')
+     assert st['step']=='complete',st;bindings=await page.evaluate('chrome.storage.session.get("identityBindings")');assert list(bindings['identityBindings'].values())[0]['origin']==IDENTITY;ok(scenario+' tracks global→regional→IDCS and completes without binding broker as identity')
     else:assert st['step']=='stopped' and st['reason']==('unverified-tenancy' if scenario=='regional-unverified' else 'unsupported-origin'),st;ok(scenario+' still stops with an explicit privacy-safe reason')
    for scenario in ['regional-domain-default','regional-domain-preselected','regional-domain-oci','regional-domain-ko','regional-domain-spa','regional-domain-missing','regional-domain-ambiguous','regional-domain-wrong-tenant']:
     tid=await start_regional();st=await wait_regional(tid)
@@ -418,8 +421,8 @@ async def main():
    denied=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:async()=>({injected:!!globalThis.OCILoginEngine,context:await chrome.runtime.sendMessage({type:'CONTEXT'}),credentials:await chrome.runtime.sendMessage({type:'CLAIM',stage:'credentials'}),bypass:await chrome.runtime.sendMessage({type:'CLAIM',stage:'bypass'})})}))[0].result''',tid)
    assert not denied['injected'] and all(not denied[k]['ok'] for k in ['context','credentials','bypass']);ok('regional broker is navigation-only: no automatic injection, context, password or bypass even after verified tenancy')
    registered=await page.evaluate('chrome.scripting.getRegisteredContentScripts()');regional_matches=[x for row in registered for x in row['matches'] if REGIONAL in x or REGIONAL_OCI in x];assert regional_matches and all(x.endswith('/v2/ui/domains*') for x in regional_matches);ok('regional content registration is limited to the domain chooser and excludes OAuth/native pages')
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[{...p,identityOrigins:["https://login.us-ashburn-1.oraclecloud.com"]}]})',PROFILE)
-   fill=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"fill"});}',PROFILE);assert not fill['ok'];await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE);ok('regional broker refuses fill-only even if an imported profile explicitly lists it as an identity')
+   await seed_personal(page,[{**PROFILE,'identityOrigins':['https://login.us-ashburn-1.oraclecloud.com']}])
+   fill=await page.evaluate('async(p)=>{const w=await chrome.windows.getCurrent();return chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),windowId:w.id,incognito:w.incognito,profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"fill"});}',PROFILE);assert not fill['ok'];await seed_personal(page,[PROFILE]);ok('regional broker refuses fill-only even if an imported profile explicitly lists it as an identity')
 
    await page.evaluate('(id)=>chrome.runtime.sendMessage({type:"CANCEL",tabId:id})',tid)
    scenario='regional-manual';tid=await start_regional()
@@ -435,12 +438,12 @@ async def main():
    (WORK/'regional-report.json').write_text(json.dumps({'count':len(checks),'checks':checks,'scope':'Linux Chromium loopback fixtures mirroring actual global link→regional hidden form→IDCS HTTP302; test-only exact regional grants; domain chooser full flow and OAuth/secret/same-document deny checks'},ensure_ascii=False,indent=2)+'\n')
    await ctx.close();server.close();await server.wait_closed();return
   if '--redirect-only' in sys.argv:
-   await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',PROFILE)
+   await seed_personal(page,[PROFILE])
    for scenario in ['redirect-korean','redirect-jet','redirect-http','redirect-slow','redirect-disabled','redirect-ambiguous']:
-    await page.evaluate('chrome.storage.local.remove("identityBindings")')
+    await page.evaluate('chrome.storage.session.remove("identityBindings")')
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
-    start=time.monotonic();r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE);assert r['ok'],r;tid=r['tabId']
+    start=time.monotonic();r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:p.tenancy,username:p.username,identityDomain:p.identityDomain},mode:"login"})',PROFILE);assert r['ok'],r;tid=r['tabId']
     for _ in range(160):
      st=await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
      if st and not st['running']:break
@@ -449,7 +452,7 @@ async def main():
     if scenario in ['redirect-disabled','redirect-ambiguous']:assert st['step']=='stopped',st;ok(scenario+' stops safely without repeating an invalid submission')
     else:assert st['step']=='complete',st;ok(scenario+' completes HTTP redirects, native/wrapped inputs, Korean sign-in and bypass')
     if scenario=='redirect-slow':assert elapsed<8,elapsed;ok('DOMContentLoaded injection completes login before slow subresource load finishes')
-   await page.evaluate('chrome.storage.local.set({profiles:[]})');await page.locator('#refresh').click();assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible()
+   await seed_personal(page,[]);await page.locator('#refresh').click();assert not await page.locator('#empty-detail h2:visible,#empty-detail p:visible,.account-list .empty:visible').count();await expect(page.locator('#empty-add')).to_be_visible()
    await page.keyboard.press('Alt+n');await expect(page.locator('#edit-dialog')).to_be_visible();await page.keyboard.press('Alt+n');assert await page.locator('dialog[open]').count()==1;await page.locator('#cancel-edit').click();await page.locator('#empty-add').click();await expect(page.locator('#edit-dialog')).to_be_visible();await page.locator('#cancel-edit').click();ok('empty view is one add button; Alt+N and button open the same editor without stacked dialogs')
    await page.set_viewport_size({'width':780,'height':580});popup=await ctx.new_page();await popup.set_viewport_size({'width':780,'height':580});await popup.goto(f'chrome-extension://{eid}/popup.html');await popup.locator('#empty-add').wait_for();await popup.screenshot(path=str(shots/'empty-popup.png'))
    assert not errors,errors
@@ -459,7 +462,7 @@ async def main():
   await page.locator('#add').click()
   for k,v in {'p-tenancy':PROFILE['tenancy'],'p-username':PROFILE['username'],'p-password':PROFILE['password'],'p-bypass':PROFILE['bypassCode']}.items():await page.locator('#'+k).fill(v)
   assert not await page.locator('#p-login').count();await page.locator('#account-form button[type=submit]').click();await page.wait_for_timeout(300)
-  saved=await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles");assert len(saved)==1 and saved[0]['bypassCode']=='000123' and 'loginUrl' not in saved[0];profile=saved[0];ok('four-field editor saves leading-zero bypass code without website URL')
+  saved=await page.evaluate("async()=> (await(await import('./lib/sources.js')).readList('local')).profiles");assert len(saved)==1 and saved[0]['bypassCode']=='000123' and 'loginUrl' not in saved[0];profile=saved[0];ok('four-field editor saves leading-zero bypass code without website URL')
   assert await page.locator('#bypassCode').inner_text()=='••••••••••••';await page.locator('[data-reveal=bypassCode]').click();assert await page.locator('#bypassCode').inner_text()=='000123';ok('bypass reveal is explicit and masked on reload')
   await page.locator('[data-copy=username]').click();await expect(page.locator('#toast')).to_have_text('복사했습니다');ok('user-triggered copy shows confirmation')
   await page.locator('#settings').click();await page.locator('#theme-mode').select_option('light');await page.locator('#theme-accent').fill('#176b61');await page.locator('#theme-accent').dispatch_event('input');await page.locator('#close-settings').click();await page.reload();await page.wait_for_timeout(200)
@@ -467,17 +470,17 @@ async def main():
   # Import/export and conflicts.
   await page.locator('#settings').click();await page.locator('[data-tab=transfer]').click();await page.locator('#export-ack').check()
   async with page.expect_download() as d:await page.locator('#export').click()
-  dl=await d.value;assert json.loads(pathlib.Path(await dl.path()).read_text())['profiles'][0]['password']=='fixture-password';ok('explicit export includes selected source')
+  dl=await d.value;export_text=pathlib.Path(await dl.path()).read_text();assert json.loads(export_text)['format']=='oci-companion-vault';assert (await page.evaluate('async(x)=>(await(await import("./lib/sources.js")).decodeImport(x.text,x.password)).profiles',{'text':export_text,'password':FIXTURE_PASSWORD}))[0]['password']=='fixture-password';ok('explicit export encrypts the selected source and remains portable with its vault password')
   incoming={'schemaVersion':1,'profiles':[{**profile,'password':'changed'}]}
   await page.locator('#import-file').set_input_files({'name':'fixture.json','mimeType':'application/json','buffer':json.dumps(incoming).encode()});await page.locator('#import-confirm').click();await page.wait_for_timeout(100);assert '같은 ID' in await page.locator('#settings-message').inner_text();ok('import conflict preserves account')
-  await page.locator('#allow-updates').check();await page.locator('#import-confirm').click();await page.wait_for_timeout(150);assert (await page.evaluate("async()=> (await chrome.storage.local.get('profiles')).profiles"))[0]['password']=='changed';ok('explicit import update succeeds')
-  await page.locator('#close-settings').click();await page.evaluate('(p)=>chrome.storage.local.set({profiles:[p]})',profile);await page.locator('#refresh').click();await page.wait_for_timeout(150)
+  await page.locator('#allow-updates').check();await page.locator('#import-confirm').click();await page.wait_for_timeout(150);assert (await page.evaluate("async()=> (await(await import('./lib/sources.js')).readList('local')).profiles"))[0]['password']=='changed';ok('explicit import update succeeds')
+  await page.locator('#close-settings').click();await seed_personal(page,[profile]);await page.locator('#refresh').click();await page.wait_for_timeout(150)
   async def status(tid):return await page.evaluate('(id)=>chrome.storage.session.get("status:"+id).then(x=>x["status:"+id])',tid)
   async def direct_start(p=profile,mode='login'):
    if mode=='login':
     for old in list(ctx.pages):
      if old!=page and old.url.startswith('https://'):await old.close()
-   r=await page.evaluate('async(x)=>chrome.runtime.sendMessage({type:"START",...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:x.mode})',{'p':p,'mode':mode});assert r.get('ok'),r
+   r=await page.evaluate('asyncasync(x)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:x.p.id,expected:{tenancy:x.p.tenancy,username:x.p.username,identityDomain:x.p.identityDomain},mode:x.mode})',{'p':p,'mode':mode});assert r.get('ok'),r
    if mode=='login':
     for _ in range(200):
      latest=await page.evaluate('(id)=>chrome.tabs.get(id).then(t=>({url:t.url,status:t.status}))',r['tabId'])
@@ -507,7 +510,7 @@ async def main():
    await page.wait_for_timeout(100)
   tid=items['items'][0]['tabId'];s=await wait_end(tid);assert s['step']=='complete',s;assert not await page.evaluate('(id)=>chrome.storage.session.get("job:"+id)',tid);ok('tenancy search + Enter completes tenancy, domain, credentials, alternative, bypass and console')
   assert requests[entry_begin]==ENTRY+'/cloud/sign-in.html' and CONSOLE+'/' not in requests[entry_begin:] and BROKER+'/v2/ui/sessionPicker' not in requests[entry_begin:];assert s['debug']['route'][0]=='account-entry';ok('normal login starts at official tenancy entry, replaces a remembered tenancy and avoids the console-first session picker')
-  bindings=await page.evaluate("async()=> (await chrome.storage.local.get('identityBindings')).identityBindings");assert list(bindings.values())[0]['origin']==IDENTITY;ok('verified identity metadata is learned without storing a website field')
+  bindings=await page.evaluate("async()=> (await chrome.storage.session.get('identityBindings')).identityBindings");assert list(bindings.values())[0]['origin']==IDENTITY;ok('verified identity metadata is learned without storing a website field')
   tid=await direct_start();assert (await wait_end(tid))['step']=='complete';ok('same reusable admin bypass code succeeds on second login')
   scenario='custom';tid=await direct_start();assert (await wait_end(tid))['step']=='complete';ok('custom domain picker, Korean alternate label and styled bypass radio complete')
   registered=await page.evaluate('()=>chrome.scripting.getRegisteredContentScripts()');assert all('*.' not in x for r in registered for x in r['matches']);ok('automatic scripts registered only for exact granted origins')
@@ -523,23 +526,23 @@ async def main():
     s=await wait_end(tid);assert s['step']=='stopped';target=await find_tab(tid);assert await target.locator('#password').input_value()=='';ok(case+' screen stops before secret entry')
   scenario='hold';tid=await direct_start();target=await find_tab(tid);await target.goto('https://idcs-untrusted.identity.oraclecloud.com/credentials');await page.wait_for_timeout(600);assert await target.locator('#password').input_value()=='';assert (await status(tid))['step']=='stopped';ok('unverified navigation to another identity receives no credentials')
   # Expected metadata must still match the worker fresh source.
-  r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:"changed",username:p.username,identityDomain:p.identityDomain}})',profile);assert not r['ok'] and '변경' in r['error'];ok('changed target metadata aborts login')
+  r=await page.evaluate('async(p)=>chrome.runtime.sendMessage({type:"START",...await(async()=>{const source=await(await import("./lib/sources.js")).readSource();return {vaultId:source.vaultId,sessionEpoch:source.sessionEpoch};})(),...await chrome.windows.getCurrent().then(w=>({windowId:w.id,incognito:w.incognito})),profileId:p.id,expected:{tenancy:"changed",username:p.username,identityDomain:p.identityDomain}})',profile);assert not r['ok'] and '변경' in r['error'];ok('changed target metadata aborts login')
   # Fill-only in verified identity, with no submit.
   target=await ctx.new_page();await target.goto(IDENTITY+'/credentials');await target.bring_to_front();tid=await direct_start(mode='fill');await page.wait_for_timeout(1600);assert await target.locator('#password').input_value()=='fixture-password' and target.url==IDENTITY+'/credentials';ok('fill-only populates credentials without submitting')
   access=await worker.evaluate('''async(id)=>(await chrome.scripting.executeScript({target:{tabId:id},func:async()=>{try{await chrome.storage.local.get(null);return 'exposed';}catch{return 'denied';}}}))[0].result''',tid);assert access=='denied';ok('content script cannot read local vault storage')
   await page.evaluate('''async(id)=>{const k='job:'+id;const j=(await chrome.storage.session.get(k))[k];j.expiresAt=Date.now()-1;await chrome.storage.session.set({[k]:j});}''',tid);await page.wait_for_timeout(1500);assert not await page.evaluate('(id)=>chrome.storage.session.get("job:"+id)',tid);ok('expired job secrets are removed')
   # Team file handles persist; always re-read current bytes; errors do not fallback.
-  await page.evaluate('''async(p)=>{const {handleSet}=await import('./lib/db.js');const d=await navigator.storage.getDirectory();const h=await d.getFileHandle('fixture-team.json',{create:true});const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[p]}));await w.close();await handleSet(h);await chrome.storage.local.set({settings:{mode:'file',fileKind:'picker',nativePath:''}});}''',profile)
+  await seed_team(page,[profile])
   await page.reload();await page.wait_for_timeout(200);assert await page.locator('#add').is_enabled() and await page.locator('#edit').is_enabled();ok('connected team source is editable by default without an application checkbox')
-  await page.evaluate('''async(p)=>{const d=await navigator.storage.getDirectory();const h=await d.getFileHandle('fixture-team.json');const w=await h.createWritable();await w.write(JSON.stringify({schemaVersion:1,profiles:[{...p,name:'변경된 팀 계정'}]}));await w.close();}''',profile);await page.locator('#refresh').click();await page.wait_for_timeout(200);assert '변경된 팀 계정' in await page.locator('#accounts').inner_text();ok('file handle persists and changed team bytes are reread')
+  await seed_team(page,[{**profile,'name':'변경된 팀 계정'}],bind=False);await page.locator('#refresh').click();await page.wait_for_timeout(200);assert '변경된 팀 계정' in await page.locator('#accounts').inner_text();ok('file handle persists and changed team bytes are reread')
   await page.evaluate('''async()=>{const h=await(await navigator.storage.getDirectory()).getFileHandle('fixture-team.json');const w=await h.createWritable();await w.write('broken JSON');await w.close();}''');await page.locator('#refresh').click();await page.wait_for_timeout(150);assert not await page.locator('.account-row').count();ok('invalid team file never falls back to personal credentials')
   # Real UI edit/delete, sample preview data never includes user credentials.
   demos=[{**profile,'id':'preview-prod','name':'서울 운영 계정'},{**profile,'id':'preview-dev','tenancy':'cloudragon-dev','name':'개발 · 테스트','username':'developer@example.invalid'},{**profile,'id':'preview-lab','tenancy':'personal-lab','name':'개인 실습','username':'lab@example.invalid'}]
-  await page.evaluate('(ps)=>chrome.storage.local.set({profiles:ps,settings:{mode:"local",fileKind:"picker",nativePath:""},appearance:{mode:"dark",accent:"#a477ff"}})',demos);await page.reload();await page.wait_for_timeout(250)
+  await seed_personal(page,demos);await page.evaluate('chrome.storage.local.set({settings:{mode:"local",fileKind:"picker"},appearance:{mode:"dark",accent:"#a477ff"}})');await page.reload();await page.wait_for_timeout(250)
   await page.locator('#search').fill('prod');assert await page.locator('.account-row').count()==1;await page.locator('#search').fill('없는테넌시');assert '검색 결과' in await page.locator('#accounts').inner_text();await page.locator('#search').fill('');await page.locator('[data-id=preview-prod]').click();ok('tenancy search selects matching accounts and handles no results')
   await page.locator('#edit').click();await page.locator('#p-tenancy').fill('cloudragon-production');await page.locator('#account-form button[type=submit]').click();await page.wait_for_timeout(180);assert await page.locator('#detail-title').inner_text()=='cloudragon-production';ok('account editing updates the selected tenancy')
   await page.locator('#more').click();await page.locator('#delete').click();await page.locator('#delete-confirm').click();await expect(page.locator('.account-row')).to_have_count(2);ok('explicit account deletion removes only selected account')
-  await page.evaluate('(ps)=>chrome.storage.local.set({profiles:ps})',demos);await page.locator('#refresh').click();await page.wait_for_timeout(150);await page.locator('[data-id=preview-prod]').click();await page.locator('#search').blur()
+  await seed_personal(page,demos);await page.locator('#refresh').click();await page.wait_for_timeout(150);await page.locator('[data-id=preview-prod]').click();await page.locator('#search').blur()
   for width,height in [(1200,820),(768,820),(390,844)]:
    await page.set_viewport_size({'width':width,'height':height});assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth');await page.screenshot(path=str(shots/f'vault-dark-{width}.png'),full_page=True)
   ok('vault fits desktop, tablet and 390px without horizontal overflow')

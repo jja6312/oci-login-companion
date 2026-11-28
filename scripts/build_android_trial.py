@@ -101,7 +101,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--chromium', required=True, type=Path)
     parser.add_argument('--key', required=True, type=Path)
-    parser.add_argument('--out', type=Path, default=ROOT / 'dist/android-nightly-test1')
+    parser.add_argument('--out', type=Path, default=ROOT / 'dist/android-nightly-test2')
+    parser.add_argument('--trial', type=int, default=2)
     args = parser.parse_args()
     key = args.key.resolve(strict=True)
     if key.is_relative_to(ROOT) or not key.is_file():
@@ -121,7 +122,7 @@ def main():
         expected[name] = git('cat-file', 'blob', object_id.decode())
     manifest = json.loads(expected['manifest.json'])
     version = manifest['version']
-    prefix = f'OCI-Companion-{version}-Android-Nightly-test1'
+    prefix = f'OCI-Companion-{version}-Android-Nightly-test{args.trial}'
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='android-pack-', dir=out.parent) as folder:
@@ -142,14 +143,14 @@ def main():
         '{{EXTENSION_ID}}', extension_id).encode()
     files = {prefix + '.crx': crx, prefix + '.zip': payload, 'ANDROID-NIGHTLY.txt': guide}
     receipt = {
-        'version': version, 'trial': 1, 'sourceCommit': source,
+        'version': version, 'trial': args.trial, 'sourceCommit': source,
         'runtimeCommit': git('log', '-1', '--format=%H', source, '--', 'extension/').decode().strip(),
         'extensionId': extension_id, 'crxFormat': 3,
         'chromiumPackerAndIndependentOpenSSLSignatureVerified': True,
         'zipIsExactCrxPayload': True, 'allRuntimeBytesMatchCommittedSource': True,
         'runtimeFileCount': len(expected), 'privateKeyIncluded': False,
         'androidDeviceInstallVerified': False, 'androidOCILoginVerified': False,
-        'androidOneDriveSyncVerified': False, 'windowsRuntimeChanged': False,
+        'androidOneDriveSyncVerified': False, 'sameRuntimeAsDesktopVersion': version,
         'files': [{'path': n, 'bytes': len(b), 'sha256': sha(b)} for n, b in files.items()],
         'runtime': [{'path': n, 'bytes': len(b), 'sha256': sha(b)} for n, b in sorted(expected.items())],
     }

@@ -1,6 +1,6 @@
 /* Shared with fixture tests. Runs only in Chrome's isolated content-script world. */
 (() => {
-  if (globalThis.OCILoginEngine?.version==='1.3.8') return;
+  if (globalThis.OCILoginEngine?.version==='2.0.0') return;
   const rendered=e=>e && !e.hidden && e.getClientRects().length>0 && getComputedStyle(e).visibility!=='hidden' && getComputedStyle(e).display!=='none';
   const visible=e=>rendered(e)&&!e.disabled&&e.getAttribute('aria-disabled')!=='true';
   const text=e=>(e.innerText||e.value||e.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');
@@ -149,25 +149,26 @@
     const domain=domainPlan(ctx);if(domain)return domain;
     return null;
   }
-  async function execute(plan,ctx,fields,ack=async()=>({ok:true})) {
+  async function execute(plan,ctx,fields,ack=async()=>({ok:true}),canContinue=()=>true) {
+    const active=()=>{if(!canContinue())throw new Error('vault locked');};active();
     if(plan.verify&&!plan.verify())throw new Error('page target changed');
     if(plan.stage==='credentials') {if(plan.input)setValue(plan.input,fields.username);setValue(plan.password,fields.password);}
     else if(plan.input)setValue(plan.input,fields.value);
     if(plan.input&&plan.stage==='tenancy'&&plan.input.value.trim().toLowerCase()!==fields.value.trim().toLowerCase())throw new Error('tenancy input did not apply');
-    if(plan.choice){plan.choice.click();await new Promise(r=>setTimeout(r,120));}
+    if(plan.choice){active();plan.choice.click();await new Promise(r=>setTimeout(r,120));active();}
     if(plan.verify&&!plan.verify())throw new Error('session changed');
-    const applied=await ack();if(!applied?.ok)throw new Error('step expired');
+    const applied=await ack();active();if(!applied?.ok)throw new Error('step expired');
     if(ctx.mode==='fill')return;
-    if(plan.radio){plan.radio.click();await new Promise(r=>setTimeout(r,120));}
+    if(plan.radio){active();plan.radio.click();await new Promise(r=>setTimeout(r,120));active();}
     const action=plan.button||plan.submit;if(action){
       // Validation can enable an Oracle JET button only after fields are filled.
       // Do not require an enabled button before supplying those field values.
       const until=Math.min(ctx.expiresAt||Infinity,Date.now()+5000);
-      do{await new Promise(r=>setTimeout(r,100));}while(action.isConnected&&!visible(action)&&Date.now()<until);
+      do{await new Promise(r=>setTimeout(r,100));active();}while(action.isConnected&&!visible(action)&&Date.now()<until);
       if(plan.verify&&!plan.verify())throw new Error('session changed');
       if(!action.isConnected||!visible(action))throw new Error('submit unavailable');
-      action.click();
+      active();action.click();
     }
   }
-  globalThis.OCILoginEngine={version:'1.3.8',describe,execute,visible};
+  globalThis.OCILoginEngine={version:'2.0.0',describe,execute,visible};
 })();
