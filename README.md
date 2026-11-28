@@ -7,6 +7,10 @@ Chrome과 Brave에서 테넌시를 검색해 OCI 로그인을 시작하는 브�
 
 **[Install.cmd 다운로드](https://github.com/jja6312/oci-login-companion/releases/latest/download/Install.cmd)**
 
+Android는 [Brave Nightly 시험 설치 안내](docs/ANDROID-NIGHTLY.md)를 참고하세요.
+일반 Android Brave용 설치가 아니며, 실기기 설치·OCI 로그인·OneDrive 팀 동기화는 미검증입니다.
+PC용 Install.cmd와 정식 최신 배포는 그대로 유지합니다.
+
 CMD 하나로 처음 설치와 기존 관리형 설치 업데이트를 처리합니다. Python과 관리자 권한은 필요하지 않습니다.
 파일을 준비한 뒤 **실제 화면과 빨간 박스로 된 안내**를 엽니다. 탐색기 폴더는 자동으로 열지 않습니다.
 
